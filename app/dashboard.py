@@ -11,7 +11,8 @@ except ImportError:
     px = None  # type: ignore
     go = None  # type: ignore
     _PLOTLY_AVAILABLE = False
-from strategy import load_session_csv, detect_pit_events, build_lap_summary, build_stints, fia_compliance_check
+from strategy import detect_pit_events, build_lap_summary, build_stints, fia_compliance_check
+from adapters.f1manager2024 import load_raw_csv
 from strategy_model import (
     collect_practice_data,
     fit_degradation_model,
@@ -83,6 +84,7 @@ def save_model_json(track: str, driver: str, models: dict, sessions_used: list, 
 # Selección jerárquica: Circuito -> Sesión -> Piloto -> Archivo
 tracks = sorted({p.name for p in DATA_ROOT.iterdir() if p.is_dir()})
 track = st.sidebar.selectbox('Circuito', tracks)
+st.sidebar.caption('Origen datos: F1 Manager 2024 (adapter)')
 
 session_root = DATA_ROOT / track
 sessions = [p.name for p in session_root.iterdir() if p.is_dir()]
@@ -111,10 +113,10 @@ csv_path = driver_dir / selected_csv
 
 @st.cache_data(show_spinner=True)
 def load_and_process(path: Path, mtime: float):
-    """Carga y procesa un archivo de telemetría.
+    """Carga y procesa un archivo de telemetría vía adapter F1 Manager 2024.
     mtime se incluye para invalidar cache cuando el archivo cambia.
     """
-    df = load_session_csv(path)
+    df = load_raw_csv(path)
     df = detect_pit_events(df)
     lap_summary = build_lap_summary(df)
     stints = build_stints(lap_summary)
