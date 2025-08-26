@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from pathlib import Path
+import sys
 from datetime import datetime
 import json
 try:
@@ -11,6 +12,20 @@ except ImportError:
     px = None  # type: ignore
     go = None  # type: ignore
     _PLOTLY_AVAILABLE = False
+"""Dashboard principal de estrategia.
+
+Nota sobre imports: si ejecutas `streamlit run dashboard.py` dentro de la carpeta `app/`,
+Python no verá el paquete hermano `adapters/` en el nivel raíz y fallará con
+`ModuleNotFoundError: No module named 'adapters'`.
+
+Solución: insertar el directorio raíz del proyecto en `sys.path` antes de importar.
+"""
+
+# Inserta raíz del repo (padre de app/) para que 'adapters' sea importable aun ejecutando dentro de app/
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
 from strategy import detect_pit_events, build_lap_summary, build_stints, fia_compliance_check
 from adapters.f1manager2024 import load_raw_csv
 from strategy_model import (
