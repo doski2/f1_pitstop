@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "GitHub.copilot",
+    "GitHub.copilot-chat",
+    "ms-toolsai.jupyter",
+    "charliermarsh.ruff",
+    "EditorConfig.EditorConfig",
+    "DavidAnson.vscode-markdownlint",
+    "eamodio.gitlens",
+    "usernamehw.errorlens",
+    "yzhang.markdown-all-in-one",
+    "redhat.vscode-yaml"
+  ]
+}
