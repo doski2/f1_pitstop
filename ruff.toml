@@ -1,0 +1,22 @@
+# Ruff configuration
+# Docs: https://docs.astral.sh/ruff/
+
+[format]
+quote-style = "double"
+line-ending = "lf"
+indent-style = "space"
+
+[lint]
+# E,F: Pycodestyle & Pyflakes, I: import sorting
+select = ["E", "F", "I"]
+# Ignore line length (handled by formatter / not critical now)
+ignore = ["E501"]
+preview = false
+
+[lint.isort]
+combine-as-imports = true
+force-single-line = false
+
+[lint.per-file-ignores]
+# Allow broader imports in __init__ if needed
+"__init__.py" = ["F401"]
