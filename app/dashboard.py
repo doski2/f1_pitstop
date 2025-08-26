@@ -23,7 +23,7 @@ from strategy_model import (
 
 st.set_page_config(page_title="Estrategia Pit Stop F1 Manager 2024", layout="wide")
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 st.title("Dashboard Estrategia de Paradas – F1 Manager 2024")
 st.caption("Análisis de telemetría, stints, temperaturas y cumplimiento normativo FIA (simplificado)")
 st.sidebar.markdown(f"**Versión:** {APP_VERSION}")

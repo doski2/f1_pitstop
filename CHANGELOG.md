@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.1
+
+Pequeñas mejoras:
+
+- Añadido workflow CI GitHub Actions.
+- Limpieza formato README (lint markdown).
+- Bump versión en dashboard.
+
 ## v1.0.0 (Initial Release)
 
 Primera versión pública con:

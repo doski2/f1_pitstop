@@ -1,4 +1,6 @@
-# Dashboard Estrategia de Paradas – F1 Manager 2024 (v1.0.0)
+# Dashboard Estrategia de Paradas – F1 Manager 2024 (v1.0.1)
+
+![CI](https://github.com/doski2/f1_pitstop/actions/workflows/ci.yml/badge.svg)
 
 Analítica y planificación de estrategia de paradas para datos exportados de **F1 Manager 2024**. Incluye:
 
@@ -50,18 +52,18 @@ Convierte CSV crudos en dataset lap-level estandarizado + features derivadas (pa
 
 Ejemplo de uso:
 
-```bash
-python curate.py --track Bahrain --input logs_in/exported_data/Bahrain --out curated/Bahrain
+```json
+{
+	"metadata": {
+		"track": "Bahrain",
+		"driver": "Fernando Alonso",
+		"sessions_included": ["Practice 1", "Practice 2"],
+		"fuel_used": true,
+		"saved_at": "2025-08-25T14:33:10"
+	},
+	"models": { "Soft": [94.3, 0.145], "Medium": [95.1, 0.120, 0.010] }
+}
 ```
-Salida: `curated/<Track>/<Session>/<Driver>/*.parquet` y `summary_<Track>.csv`.
-
-### 4.2 Modelos Iniciales (`init_models.py`)
-Genera modelos de degradación por compuesto (lineal: tiempo = a + b_age*edad [+ c_fuel*fuel]). Usa prácticas; si faltan, toma muestras iniciales de carrera.
-```bash
-python init_models.py --track Bahrain
-```
-Salida: `models/<Track>/<Driver>_model.json`.
-
 ## 5. Modelo de Degradación
 Actualmente lineal por compuesto. Formatos posibles de coeficientes:
  
