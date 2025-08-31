@@ -2,23 +2,24 @@
 
 ![CI](https://github.com/doski2/f1_pitstop/actions/workflows/ci.yml/badge.svg)
 
-Analítica y planificación de estrategia de paradas para datos exportados de **F1 Manager 2024**. Incluye:
+Analítica y planificación de estrategia de paradas para datos exportados de **F1 Manager 2024**.
 
-- Detección de stints y paradas de boxes.
-- Modelado básico de degradación (por compuesto) y soporte para modelos precomputados.
-- Evaluación de estrategias (enumeración de planes con restricciones FIA simplificadas).
-- Visualización de tiempos de vuelta, temperaturas de neumáticos, pista/aire y desgaste (si está disponible).
-- Recomendación en vivo de próxima parada (heurística sobre modelo lineal).
+- Detección de stints y paradas.
+- Modelo lineal de degradación por compuesto (JSON persistente).
+- Enumeración de estrategias (reglas FIA simplificadas).
+- Visualizaciones (laps, temps, desgaste, track/air).
+- Recomendación en vivo de pit.
+- Capa adapter preparada para multi‑juego.
 
-> Descargo: No está afiliado a Frontier / FIA. Las reglas y cálculos están simplificados y sirven solo con fines analíticos y educativos.
+> Descargo: No afiliado a Frontier / FIA. Reglas simplificadas.
 
 ---
 ## 1. Requisitos
 
-- Python 3.10+ (probado con 3.10–3.13)
+- Python 3.10+ (probado 3.10–3.13)
 - Dependencias en `requirements.txt`
 
-Instalación rápida (Windows PowerShell):
+Instalación rápida (PowerShell):
 
 ```powershell
 python -m venv .venv
@@ -27,109 +28,94 @@ pip install -U pip
 pip install -r requirements.txt
 ```
 
-	"metadata": {
-		"track": "Bahrain",
-		"driver": "Fernando Alonso",
-		"sessions_included": ["Practice 1", "Practice 2"],
-		"fuel_used": true,
-		"saved_at": "2025-08-25T14:33:10"
-	},
-	"models": { "Soft": [94.3, 0.145], "Medium": [95.1, 0.120, 0.010] }
+## 2. Estructura de Datos de Entrada
 
 ```text
 logs_in/
 	exported_data/
 		<Track>/
-			<Session>/  (Practice 1 | Practice 2 | Practice 3 | Qualifying 1.. | Race)
+			<Session>/ (Practice 1 | Practice 2 | Practice 3 | Qualifying 1.. | Race)
 				<Driver>/
-					archivo.csv
+					<archivo>.csv
 ```
-Ejemplo: `logs_in/exported_data/Bahrain/Practice 1/Fernando Alonso/2025-08-24_...csv`
 
-## 4. Scripts Auxiliares
-### 4.1 Curación de Datos (`curate.py`)
-Convierte CSV crudos en dataset lap-level estandarizado + features derivadas (pace_index, rolling medians, fuel slope) y guarda en Parquet.
+Ejemplo ruta: `logs_in/exported_data/Bahrain/Practice 1/Fernando Alonso/2025-08-24_...csv`
 
-Ejemplo de uso:
+## 4. Scripts
+
+### 4.1 Curación (`app/curate.py`)
+
+```bash
+python app/curate.py --track Bahrain --input logs_in/exported_data/Bahrain --out curated/Bahrain
+```
+
+### 4.2 Modelos Iniciales (`app/init_models.py`)
+
+```bash
+python app/init_models.py --track Bahrain
+```
+
+## 5. Modelo de Degradación
+
+Ecuación:
+
+```text
+lap_time = a + b_age * tire_age [+ c_fuel * fuel]
+```
+
+Ejemplo JSON:
 
 ```json
-{
-	"metadata": {
-		"track": "Bahrain",
-		"driver": "Fernando Alonso",
-		"sessions_included": ["Practice 1", "Practice 2"],
-		"fuel_used": true,
-		"saved_at": "2025-08-25T14:33:10"
-	},
-	"models": { "Soft": [94.3, 0.145], "Medium": [95.1, 0.120, 0.010] }
-}
+{"metadata":{"track":"Bahrain","driver":"Fernando Alonso","sessions_included":["Practice 1"],"fuel_used":true,"saved_at":"2025-08-25T14:33:10"},"models":{"Soft":[94.3,0.145],"Medium":[95.1,0.120,0.010]}}
 ```
-## 5. Modelo de Degradación
-Actualmente lineal por compuesto. Formatos posibles de coeficientes:
- 
-```text
-"Soft": [a, b_age]
-{
-	"metadata": {
-		"track": "Bahrain",
-		"driver": "Fernando Alonso",
-		"sessions_included": ["Practice 1", "Practice 2"],
-		"fuel_used": true,
-		"saved_at": "2025-08-25T14:33:10"
-	},
-	"models": { "Soft": [94.3, 0.145], "Medium": [95.1, 0.120, 0.010] }
-}
-		"saved_at": "2025-08-25T14:33:10"
-	},
+
 ## 6. Uso en el Dashboard
 
 1. Selecciona Circuito / Sesión / Piloto / Archivo CSV.
 2. Revisa lap summary y stints.
-3. En pestaña Estrategia: opcionalmente carga modelo precomputado (checkbox) o genera uno nuevo.
+3. (Estrategia) Carga modelo precomputado o genera uno nuevo.
 4. Ajusta parámetros: pérdida de pit, consumo, vueltas totales.
 5. Calcula estrategias y revisa stints previstos.
-6. Guarda modelo (persistencia para próximas sesiones).
-3. En pestaña Estrategia: opcionalmente carga modelo precomputado (checkbox) o genera uno nuevo.
+6. Guarda modelo para reutilizar.
+
 ## 7. Añadir un Nuevo Circuito
-5. Calcula estrategias y revisa stints previstos.
-Editar el diccionario `TRACK_LAPS` en `dashboard.py` añadiendo `'NuevoCircuito': <vueltas>`.
 
-## 8. Buenas Prácticas / Publicación
+Editar `TRACK_LAPS` en `app/dashboard.py`.
 
-- Limpiar datos confidenciales antes de subir.
-- Añadir datasets de ejemplo (pequeños, anonimizados) o proveer script de descarga.
-- Ejecutar `curate.py` y subir solo Parquets de ejemplo opcionales (no obligatorios).
-- Verificar que `pyarrow` esté instalado para escritura Parquet.
-- Añadir datasets de ejemplo (pequeños, anonimizados) o proveer script de descarga.
-## 9. Limitaciones Actuales
+## 8. Buenas Prácticas
 
-- Modelo lineal (no contempla curvatura de degradación ni efectos de temperatura).
-- Estrategias enumeradas sin simulación de Safety Car ni tráfico.
-- No hay comparación multi-piloto simultánea.
-- Validaciones FIA simplificadas (no contempla condiciones de neumáticos de lluvia detalladas).
-- Estrategias enumeradas sin simulación de Safety Car ni tráfico.
-## 10. Roadmap Corto
+- No subir datos crudos masivos.
+- Añadir dataset ejemplo opcional.
+- Verificar `pyarrow` instalado para Parquet.
 
-- Métricas de calidad de modelo (MAE, R²) en UI.
-- Versionado de modelos y histórico.
-- Curvas no lineales (piecewise / exponencial).
-- Simulación Monte Carlo con probabilidad de Safety Car.
-- Versionado de modelos y histórico.
+## 9. Limitaciones
+
+- Modelo lineal simple.
+- Sin Safety Car / tráfico.
+- Sin multi‑piloto simultáneo.
+- Reglas FIA simplificadas.
+
+## 10. Roadmap
+
+- Métricas MAE/R².
+- Historial modelos.
+- Modelos no lineales.
+- Monte Carlo (Safety Car).
+- Selector multi‑juego.
+
 ## 11. Contribuir
 
 1. Fork / rama feature.
-2. Cambios con mensajes de commit claros (ES o EN).
-3. PR describiendo: objetivo, cambios, pruebas manuales.
-Sugerido:
-## 12. Licencia
-2. Cambios con mensajes de commit claros (ES o EN).
-3. PR describiendo: objetivo, cambios, pruebas manuales.
+2. Commits claros (ES o EN).
+3. PR con descripción y pruebas manuales.
 
-## 13. Descargo de Responsabilidad
+## 12. Licencia
+
 MIT – ver `LICENSE`.
 
-## 13. Descargo de Responsabilidad
-Este software se ofrece "tal cual", sin garantías. Uso bajo propia responsabilidad. No distribuye datos originales del juego.
+## 13. Descargo
+
+Software "tal cual" sin garantías. No distribuye datos originales del juego.
 
 ---
 ¡Felices estrategias! 🏁

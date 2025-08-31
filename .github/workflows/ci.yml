@@ -25,5 +25,9 @@ jobs:
           python -m py_compile app/*.py
       - name: List files (debug)
         run: ls -R
+      - name: Ruff Lint
+        run: |
+          pip install ruff
+          ruff check .
       - name: Summary
         run: echo "Build OK" > build_status.txt
