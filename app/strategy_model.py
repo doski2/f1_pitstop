@@ -1,10 +1,11 @@
 from __future__ import annotations
+
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Union
-from strategy import load_session_csv, build_lap_summary
-
+from strategy import build_lap_summary, load_session_csv
 
 PRACTICE_SESSION_NAMES = {"Practice 1", "Practice 2", "Practice 3", "Practice", "FP1", "FP2", "FP3"}
 
@@ -109,7 +110,7 @@ def enumerate_plans(race_laps: int, compounds: List[str], models: Dict[str, Unio
     max_len = {c: max_stint_length(practice_laps, c) for c in compounds}
 
     def add_plan(seq: List[Tuple[str, int]]):
-        if sum(l for _, l in seq) != race_laps:
+        if sum(laps for _, laps in seq) != race_laps:
             return
         if require_two_compounds and len({c for c, _ in seq}) < 2 and race_laps > 15:
             return
@@ -117,22 +118,26 @@ def enumerate_plans(race_laps: int, compounds: List[str], models: Dict[str, Unio
         details = []
         feasible = True
         fuel_cursor = start_fuel
-        for comp, l in seq:
+        for comp, laps in seq:
             if comp not in models:
                 feasible = False
                 break
             coeffs = models[comp]
             if use_fuel and len(coeffs) == 3:
                 a, b_age, c_fuel = coeffs
-                ages = np.arange(0, l)
+                ages = np.arange(0, laps)
                 fuel_series = fuel_cursor - cons_per_lap * ages
+                # Viabilidad de combustible: no permitir valores negativos
+                if (fuel_series < 0).any():
+                    feasible = False
+                    break
                 stint_time_val = float(np.sum(a + b_age * ages + c_fuel * fuel_series))
-                fuel_cursor -= cons_per_lap * l
+                fuel_cursor -= cons_per_lap * laps
             else:
                 a, b_age = coeffs[0], coeffs[1]
-                stint_time_val = stint_time(a, b_age, l)
+                stint_time_val = stint_time(a, b_age, laps)
             total += stint_time_val
-            details.append({'compound': comp, 'laps': l, 'pred_time': stint_time_val})
+            details.append({'compound': comp, 'laps': laps, 'pred_time': stint_time_val})
         if not feasible:
             return
         total += pit_loss * (len(seq) - 1)
@@ -147,11 +152,11 @@ def enumerate_plans(race_laps: int, compounds: List[str], models: Dict[str, Unio
             return
         for comp in compounds:
             max_l = min(max_len.get(comp, rem_laps), rem_laps)
-            for l in range(min_stint, max_l + 1):
+            for laps in range(min_stint, max_l + 1):
                 # Ensure final stint can be at least min_stint unless rem_laps-l ==0
-                if rem_laps - l != 0 and rem_laps - l < min_stint:
+                if rem_laps - laps != 0 and rem_laps - laps < min_stint:
                     continue
-                recurse(rem_laps - l, current + [(comp, l)], depth + 1)
+                recurse(rem_laps - laps, current + [(comp, laps)], depth + 1)
 
     recurse(race_laps, [], 0)
     best.sort(key=lambda x: x['total_time'])
@@ -173,14 +178,6 @@ def live_pit_recommendation(current_lap: int, total_race_laps: int, current_comp
     rem_laps = total_race_laps - current_lap
     if rem_laps <= 0:
         return None
-    # Determine best alternative compound (could be same compound if rules allow)
-    best_comp_alt = None
-    best_single_lap = None
-    for comp, coeffs in models.items():
-        a = coeffs[0]
-        if best_single_lap is None or a < best_single_lap:
-            best_single_lap = a
-            best_comp_alt = comp
     cur_coeffs = models[current_compound]
     if use_fuel and len(cur_coeffs) == 3:
         a_cur, b_cur, c_cur = cur_coeffs
@@ -192,6 +189,9 @@ def live_pit_recommendation(current_lap: int, total_race_laps: int, current_comp
         ages = np.arange(current_tire_age, current_tire_age + pit_in)
         if use_fuel and c_cur is not None:
             fuel_seg = current_fuel - cons_per_lap * np.arange(0, pit_in)
+            # No permitir quedarnos sin combustible antes del pit
+            if (fuel_seg < 0).any():
+                continue
             time_current = float(np.sum(a_cur + b_cur * ages + c_cur * fuel_seg))
             fuel_after = current_fuel - cons_per_lap * pit_in
         else:
@@ -200,18 +200,29 @@ def live_pit_recommendation(current_lap: int, total_race_laps: int, current_comp
         laps_after = rem_laps - pit_in
         if laps_after < 0:
             continue
-        if best_comp_alt is None:
-            return None
-        new_coeffs = models[best_comp_alt]
-        if use_fuel and len(new_coeffs) == 3:
-            a_new, b_new, c_new = new_coeffs
-            new_ages = np.arange(0, laps_after)
-            fuel_new = fuel_after - cons_per_lap * new_ages
-            time_new = float(np.sum(a_new + b_new * new_ages + c_new * fuel_new))
-        else:
-            a_new, b_new = new_coeffs[0], new_coeffs[1]
-            time_new = stint_time(a_new, b_new, laps_after)
-        total = time_current + pit_loss + time_new
+        # Elegir el mejor compuesto para el tramo restante evaluando tiempo total (no solo intercepto)
+        best_comp_alt = None
+        best_tail_time = None
+        for comp, coeffs in models.items():
+            if use_fuel and len(coeffs) == 3:
+                a_new, b_new, c_new = coeffs
+                new_ages = np.arange(0, laps_after)
+                if laps_after > 0:
+                    fuel_new = fuel_after - cons_per_lap * new_ages
+                    if (fuel_new < 0).any():
+                        continue
+                    time_new = float(np.sum(a_new + b_new * new_ages + c_new * fuel_new))
+                else:
+                    time_new = 0.0
+            else:
+                a_new, b_new = coeffs[0], coeffs[1]
+                time_new = stint_time(a_new, b_new, laps_after)
+            if best_tail_time is None or time_new < best_tail_time:
+                best_tail_time = time_new
+                best_comp_alt = comp
+        if best_comp_alt is None or best_tail_time is None:
+            continue
+        total = time_current + pit_loss + best_tail_time
         evaluations.append({'pit_on_lap': current_lap + pit_in, 'continue_laps': pit_in, 'new_compound': best_comp_alt,
                             'projected_total_remaining': total})
     if not evaluations:

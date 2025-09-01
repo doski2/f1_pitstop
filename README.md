@@ -1,4 +1,4 @@
-# Dashboard Estrategia de Paradas – F1 Manager 2024 (v1.0.1)
+# Dashboard Estrategia de Paradas – F1 Manager 2024 (v1.0.2)
 
 ![CI](https://github.com/doski2/f1_pitstop/actions/workflows/ci.yml/badge.svg)
 

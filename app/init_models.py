@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, Union, Tuple, List
-import pandas as pd
+from typing import Dict, List, Tuple, Union
 
+import pandas as pd
+from strategy import build_lap_summary, load_session_csv
 from strategy_model import collect_practice_data, fit_degradation_model
-from strategy import load_session_csv, build_lap_summary
 
 # ---------------------------------------------------------------------------
 # Utilidades
@@ -62,8 +64,10 @@ def prepare_driver_data(data_root: Path, track: str, driver: str) -> pd.DataFram
 
 
 def save_models(models: Dict[str, Union[Tuple[float, float], Tuple[float, float, float]]], out_path: Path, meta: dict):
+    # Añadir timestamp de guardado para trazabilidad
+    meta_with_ts = {**meta, 'saved_at': datetime.now().isoformat(timespec='seconds')}
     serializable = {
-        'metadata': meta,
+        'metadata': meta_with_ts,
         'models': {comp: list(coeffs) for comp, coeffs in models.items()}
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)

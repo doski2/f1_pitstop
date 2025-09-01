@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 import argparse
 from pathlib import Path
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 RAW_COLUMNS_PRIMARY_KEYS = ["timestamp","driverNumber","currentLap","turnNumber"]
 
@@ -85,7 +87,8 @@ def compute_features(laps: pd.DataFrame) -> pd.DataFrame:
             x = g2['fuel'].to_numpy()
             y = g2['lap_time_s'].to_numpy()
             # slope (least squares)
-            xm = np.mean(x); ym = np.mean(y)
+            xm = np.mean(x)
+            ym = np.mean(y)
             denom = ((x - xm)**2).sum()
             if denom == 0:
                 return np.nan
