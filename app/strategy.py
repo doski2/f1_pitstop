@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -100,6 +101,21 @@ def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _parse_lap_time_to_seconds(v):
+    """Acepta float en segundos o cadenas tipo 'm:ss.xxx' y devuelve segundos (float)."""
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip()
+    m = re.match(r'^(?:(\d+):)?(\d+(?:\.\d+)?)$', s)
+    if not m:
+        return None
+    mins = int(m.group(1) or 0)
+    secs = float(m.group(2))
+    return mins * 60 + secs
+
+
 def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
     """Return one row per completed lap with key metrics.
 
@@ -120,13 +136,8 @@ def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
     # Add lap-level pit flag (ensure boolean)
     lap_last['pit_stop'] = lap_last[lap_col].map(pit_by_lap).fillna(False)
     # Parse lap time
-    def _to_float(v):
-        try:
-            return float(v)
-        except Exception:
-            return None
     if SESSION_COL_MAP['lap_time_col'] in lap_last.columns:
-        lap_last['lap_time_s'] = lap_last[SESSION_COL_MAP['lap_time_col']].apply(_to_float)
+        lap_last['lap_time_s'] = lap_last[SESSION_COL_MAP['lap_time_col']].apply(_parse_lap_time_to_seconds)
     cols = [lap_col, 'lap_time_s', SESSION_COL_MAP['compound'], SESSION_COL_MAP['tire_age'],
             SESSION_COL_MAP['track_temp'], SESSION_COL_MAP['air_temp'], SESSION_COL_MAP['fl_temp'],
             SESSION_COL_MAP['fr_temp'], SESSION_COL_MAP['rl_temp'], SESSION_COL_MAP['rr_temp'], 'fuel', 'pit_stop']
@@ -152,12 +163,13 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
             continue
         tire_age = row.get(SESSION_COL_MAP['tire_age'])
         is_pit = bool(row.get('pit_stop'))
+        is_reset_age = (pd.notna(tire_age) and tire_age == 0)
         if current_compound is None:
             current_compound = compound
             stint_start_lap = lap
             stint_number = 1
         # If pit stop occurred (detected on the OUT lap) start new stint
-        elif is_pit or (tire_age == 0 and stint_start_lap is not None and lap > stint_start_lap):
+        elif is_pit or (is_reset_age and stint_start_lap is not None and lap > stint_start_lap):
             # Close previous
             prev = lap_summary[(lap_summary['currentLap'] >= stint_start_lap) & (lap_summary['currentLap'] < lap)]
             if not prev.empty:
