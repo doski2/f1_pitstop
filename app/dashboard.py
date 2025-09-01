@@ -57,9 +57,7 @@ st.caption(
 )
 st.sidebar.markdown(f"**Versión:** {APP_VERSION}")
 
-BASE_DIR = (
-    Path(__file__).resolve().parent
-)  # raíz del proyecto (más robusto para streamlit run)
+BASE_DIR = _ROOT  # raíz del proyecto (más robusto para streamlit run)
 _candidate_paths = [
     Path("logs_in/exported_data"),  # relativo al cwd
     BASE_DIR / "logs_in" / "exported_data",  # relativo al archivo
