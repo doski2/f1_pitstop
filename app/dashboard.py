@@ -39,6 +39,12 @@ from f1m.telemetry import (
 st.set_page_config(page_title="Estrategia Pit Stop F1 Manager 2024", layout="wide")
 
 APP_VERSION = "1.1.0"
+
+# --- Guardas de sesión para evitar re-ejecuciones en cascada ---
+if "init_done" not in st.session_state:
+    st.session_state["init_done"] = True
+if "auto_guard" not in st.session_state:
+    st.session_state["auto_guard"] = False
 st.title("Dashboard Estrategia de Paradas – F1 Manager 2024")
 st.caption(
     "Análisis de telemetría, stints, temperaturas y cumplimiento normativo FIA (simplificado)"
@@ -63,6 +69,39 @@ if DATA_ROOT is None:
     st.stop()
 
 MODELS_ROOT = BASE_DIR / "models"
+
+# ---------- utilidades cacheadas para listar disco ----------
+@st.cache_data(show_spinner=False)
+def list_tracks(data_root: Path) -> list[str]:
+    return sorted([p.name for p in data_root.iterdir() if p.is_dir()])
+
+@st.cache_data(show_spinner=False)
+def list_sessions_for(track_dir: Path) -> list[str]:
+    return sorted([p.name for p in track_dir.iterdir() if p.is_dir()])
+
+@st.cache_data(show_spinner=False)
+def list_drivers_for(session_dir: Path) -> list[str]:
+    drivers: set[str] = set()
+    # Recorremos *una vez* y cacheamos; evita disparar re-ejecuciones por IO en cada render
+    for d in session_dir.rglob("*"):
+        if d.is_dir() and any(f.suffix == ".csv" for f in d.glob("*.csv")):
+            drivers.add(d.name)
+    return sorted(drivers)
+
+# ---------- autorefresh con guarda ----------
+def autorefresh_guarded(enabled: bool, interval_ms: int = 15000):
+    # Solo activamos el autorefresh si el usuario lo marcó y aún no estaba activo
+    if enabled and not st.session_state["auto_guard"]:
+        st.session_state["auto_guard"] = True
+    if enabled:
+        # Streamlit se re-ejecuta cada intervalo, pero una única "línea de vida" por sesión
+        _autoref = getattr(st, "autorefresh", None)
+        if callable(_autoref):
+            _autoref(interval=interval_ms, key="auto_rfr")
+        else:
+            _rerun = getattr(st, "experimental_rerun", None)
+            if callable(_rerun):
+                _rerun()
 
 
 def load_precomputed_model(track: str, driver: str):
