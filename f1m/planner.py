@@ -1,3 +1,8 @@
+"""Planificador:
+- `enumerate_plans`: backtracking para enumerar planes (stints) con límites.
+- `live_pit_recommendation`: ventana local que sugiere vuelta de parada y compuesto.
+Incluye chequeos de viabilidad por combustible cuando hay modelo con fuel.
+"""
 from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple, Union
@@ -22,7 +27,7 @@ def enumerate_plans(
     start_fuel: float = 0.0,
     cons_per_lap: float = 0.0,
 ) -> List[dict]:
-    """Enumerate feasible pit-stop plans and return top_k by total time.
+    """Devuelve los `top_k` mejores planes por tiempo total estimado.
 
     The plan is a list of (compound, laps) stints whose laps sum to ``race_laps``.
     This function validates fuel feasibility when ``use_fuel`` is enabled and uses

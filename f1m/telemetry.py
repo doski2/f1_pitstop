@@ -1,10 +1,7 @@
-"""f1m.telemetry
+"""Telemetry utilities for f1m.
 
-Utilidades de telemetría: lectura CSV, detección de pitstops, resumen por vuelta,
-construcción de stints y chequeo básico de normativa FIA.
-
-Este módulo no depende de Streamlit ni de librerías de visualización: puede usarse
-como biblioteca desde CLI, notebooks o tests.
+Provides CSV loading, pit detection heuristics, lap summaries and stint building.
+All docstrings use plain ASCII to avoid parser issues on Windows.
 """
 
 from __future__ import annotations
@@ -19,9 +16,9 @@ import pandas as pd
 
 @dataclass
 class Stint:
-    """Estructura de un stint detectado en carrera/prácticas.
+    """Structure describing a detected stint.
 
-    Los promedios ignoran NaN. `total_laps` cuenta vueltas únicas del stint.
+    Averages ignore NaN. ``total_laps`` counts unique laps in the stint.
     """
 
     stint_number: int
@@ -55,10 +52,10 @@ SESSION_COL_MAP = {
 
 
 def load_session_csv(csv_path: Path) -> pd.DataFrame:
-    """Carga un CSV de sesión con normalización mínima.
+    """Load and lightly normalize a session CSV.
 
-    - Convierte `timestamp` (si existe) a datetime.
-    - Ordena por `timestamp` si existe `currentLap`.
+    - Convert ``timestamp`` to datetime if present.
+    - Sort by ``timestamp`` when ``currentLap`` exists.
     """
 
     df = pd.read_csv(csv_path)
@@ -70,12 +67,12 @@ def load_session_csv(csv_path: Path) -> pd.DataFrame:
 
 
 def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
-    """Añade columna booleana `pit_stop` usando heurísticas.
+    """Add boolean column 'pit_stop' using heuristics.
 
-    Heurísticas implementadas:
-    - Reinicio de `tire_age` a 0 o caída pronunciada.
-    - Cambio de compuesto con `tire_age` ≤ 1.
-    - (si existe) flags en columnas tipo `pitstopStatus`.
+    Heuristics:
+    - tire_age reset to 0 or a large drop
+    - compound change when tire_age <= 1
+    - explicit flags in pit status columns if present
     """
 
     if SESSION_COL_MAP["lap"] not in df.columns:
@@ -88,7 +85,6 @@ def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
             pit_status_col = cand
             break
 
-    # If there's no tire_age column, detect pit by compound change or explicit flags
     if SESSION_COL_MAP["tire_age"] not in df.columns:
         comp = df.get(SESSION_COL_MAP["compound"])
         if isinstance(comp, pd.Series):
@@ -130,9 +126,9 @@ def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _parse_lap_time_to_seconds(v) -> Optional[float]:
-    """Acepta float en segundos o cadenas tipo 'm:ss.xxx' y devuelve segundos.
+    """Accept floats (seconds) or strings like 'm:ss.xxx' and return seconds.
 
-    Devuelve None si no puede parsear.
+    Returns None when unparsable.
     """
 
     if v is None or (isinstance(v, float) and pd.isna(v)):
@@ -149,10 +145,7 @@ def _parse_lap_time_to_seconds(v) -> Optional[float]:
 
 
 def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
-    """Devuelve un DataFrame con una fila por vuelta completada.
-
-    Columnas típicas: currentLap, lap_time_s, compound, tire_age, temperaturas (si existen),
-    fuel (si existe) y `pit_stop` a nivel de vuelta.
+    """Return one-row-per-lap summary with lap_time_s, compound, tire_age, temps, fuel, pit_stop.
     """
 
     lap_col = SESSION_COL_MAP["lap"]
@@ -196,31 +189,16 @@ def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
 def _aggregate_stint(
     stint_rows: pd.DataFrame, stint_number: int, compound: str
 ) -> Stint:
-    """Agrega métricas de un bloque contiguo de vueltas (`stint_rows`).
-
-    Requiere que `stint_rows` pertenezca a un solo stint.
-    """
+    """Aggregate metrics for a contiguous block of laps belonging to a single stint."""
 
     metrics = {
         "avg_lap_time": stint_rows["lap_time_s"].mean(skipna=True),
-        "avg_track_temp": stint_rows.get(
-            SESSION_COL_MAP["track_temp"], pd.Series(dtype=float)
-        ).mean(skipna=True),
-        "avg_air_temp": stint_rows.get(
-            SESSION_COL_MAP["air_temp"], pd.Series(dtype=float)
-        ).mean(skipna=True),
-        "avg_fl_temp": stint_rows.get(
-            SESSION_COL_MAP["fl_temp"], pd.Series(dtype=float)
-        ).mean(skipna=True),
-        "avg_fr_temp": stint_rows.get(
-            SESSION_COL_MAP["fr_temp"], pd.Series(dtype=float)
-        ).mean(skipna=True),
-        "avg_rl_temp": stint_rows.get(
-            SESSION_COL_MAP["rl_temp"], pd.Series(dtype=float)
-        ).mean(skipna=True),
-        "avg_rr_temp": stint_rows.get(
-            SESSION_COL_MAP["rr_temp"], pd.Series(dtype=float)
-        ).mean(skipna=True),
+        "avg_track_temp": stint_rows.get(SESSION_COL_MAP["track_temp"], pd.Series(dtype=float)).mean(skipna=True),
+        "avg_air_temp": stint_rows.get(SESSION_COL_MAP["air_temp"], pd.Series(dtype=float)).mean(skipna=True),
+        "avg_fl_temp": stint_rows.get(SESSION_COL_MAP["fl_temp"], pd.Series(dtype=float)).mean(skipna=True),
+        "avg_fr_temp": stint_rows.get(SESSION_COL_MAP["fr_temp"], pd.Series(dtype=float)).mean(skipna=True),
+        "avg_rl_temp": stint_rows.get(SESSION_COL_MAP["rl_temp"], pd.Series(dtype=float)).mean(skipna=True),
+        "avg_rr_temp": stint_rows.get(SESSION_COL_MAP["rr_temp"], pd.Series(dtype=float)).mean(skipna=True),
     }
 
     return Stint(
@@ -234,9 +212,9 @@ def _aggregate_stint(
 
 
 def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
-    """Construye la lista de stints a partir de `lap_summary`.
+    """Build stints list from lap summary.
 
-    Crea un nuevo stint ante un pit detectado o reinicio de `tire_age` (edad=0).
+    Starts a new stint on pit_stop True or when tire_age resets to 0.
     """
 
     if lap_summary.empty:
@@ -245,81 +223,59 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
     lap_col = SESSION_COL_MAP["lap"]
     stints: List[Stint] = []
 
-    # Ensure lap_summary is ordered by lap
     ordered = lap_summary.sort_values(lap_col)
 
-    # Identify changes that start a new stint
-    change_mask = (
-        ordered[SESSION_COL_MAP["compound"]]
-        .astype(str)
-        .ne(ordered[SESSION_COL_MAP["compound"]].shift(1).astype(str))
+    change_mask = ordered.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str)).astype(str).ne(
+        ordered.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str)).shift(1).astype(str)
     )
     tire_age = ordered.get(SESSION_COL_MAP["tire_age"])
     if tire_age is not None:
         reset_age = (tire_age == 0) & (tire_age.shift(1) > 0)
         change_mask = change_mask | reset_age.fillna(False)
 
-    # Also create a stint start where pit_stop is True
     if "pit_stop" in ordered.columns:
         change_mask = change_mask | ordered["pit_stop"].fillna(False)
 
-    # Mark stint ids
     stint_ids = change_mask.cumsum().fillna(0).astype(int)
 
-    for stint_number, (stint_id, rows) in enumerate(
-        ordered.groupby(stint_ids), start=1
-    ):
+    for stint_number, (_, rows) in enumerate(ordered.groupby(stint_ids), start=1):
         if rows.empty:
             continue
-        compound = (
-            str(rows[SESSION_COL_MAP["compound"]].dropna().iloc[0])
-            if SESSION_COL_MAP["compound"] in rows.columns
-            else "unknown"
-        )
+        compound = str(rows.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str)).dropna().iloc[0]) if SESSION_COL_MAP["compound"] in rows.columns else "unknown"
         stints.append(_aggregate_stint(rows, stint_number, compound))
 
     return stints
 
 
-def fia_compliance_check(
-    stints: List[Stint], weather_series: Optional[pd.Series]
-) -> dict:
-    """Chequeo heurístico de cumplimiento FIA (simplificado):
-    - Dos compuestos en seco si la carrera es “suficientemente larga”.
-    - Longitud de stint razonable (70% de la distancia total, bandera heurística).
-    - Presencia de al menos una parada en carreras largas.
+def fia_compliance_check(stints: List[Stint], weather_series: Optional[pd.Series]) -> dict:
+    """Simplified FIA compliance heuristics.
+
+    - checks compound diversity in dry conditions
+    - flags excessively long stints
+    - warns when no pit stops in long races
     """
 
-    result = {
-        "used_two_compounds": True,
-        "max_stint_ok": True,
-        "pit_stop_required": True,
-        "notes": [],
-    }
+    result = {"used_two_compounds": True, "max_stint_ok": True, "pit_stop_required": True, "notes": []}
     if not stints:
-        result["notes"].append("Sin stints detectados.")
+        result["notes"].append("No stints detected.")
         return result
 
     compounds = {s.compound for s in stints}
     total_laps = sum(s.total_laps for s in stints)
-    weather_text = (
-        " ".join(weather_series.dropna().unique()) if weather_series is not None else ""
-    )
+    weather_text = " ".join(weather_series.dropna().unique()) if weather_series is not None else ""
     is_dry = "Rain" not in weather_text and "Wet" not in weather_text
 
     if is_dry and len(compounds) < 2 and total_laps >= 10:
         result["used_two_compounds"] = False
-        result["notes"].append("Menos de dos compuestos usados en condiciones secas.")
+        result["notes"].append("Fewer than two compounds used in dry conditions.")
 
     max_allowed = int(total_laps * 0.7)
     if any(s.total_laps > max_allowed for s in stints) and total_laps >= 15:
         result["max_stint_ok"] = False
-        result["notes"].append(
-            "Un stint supera el 70% de la distancia total (bandera heurística)."
-        )
+        result["notes"].append("A stint exceeds 70% of distance (heuristic).")
 
     if len(stints) < 2 and total_laps > 20:
         result["pit_stop_required"] = False
-        result["notes"].append("Carrera larga con una sola parada / sin paradas.")
+        result["notes"].append("Long race with a single or no stops detected.")
 
     return result
