@@ -1,9 +1,12 @@
 from __future__ import annotations
+
+from pathlib import Path
+from typing import Dict, Tuple, Union
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Union
-from .telemetry import load_session_csv, build_lap_summary
+
+from .telemetry import build_lap_summary, load_session_csv
 
 PRACTICE_SESSION_NAMES = {"Practice 1", "Practice 2", "Practice 3", "Practice", "FP1", "FP2", "FP3"}
 

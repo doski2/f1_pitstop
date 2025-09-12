@@ -1,9 +1,12 @@
 from __future__ import annotations
-import pandas as pd
+
 import re
 from dataclasses import dataclass
-from typing import List, Optional
 from pathlib import Path
+from typing import List, Optional
+
+import pandas as pd
+
 
 @dataclass
 class Stint:

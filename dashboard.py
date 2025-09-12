@@ -1,8 +1,10 @@
-import streamlit as st
-import pandas as pd
-from pathlib import Path
-from datetime import datetime
 import json
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
+
 try:
     import plotly.express as px  # type: ignore
     import plotly.graph_objects as go  # type: ignore
@@ -11,9 +13,16 @@ except ImportError:
     px = None  # type: ignore
     go = None  # type: ignore
     _PLOTLY_AVAILABLE = False
-from f1m.telemetry import load_session_csv, detect_pit_events, build_lap_summary, build_stints, fia_compliance_check
 from f1m.modeling import collect_practice_data, fit_degradation_model
 from f1m.planner import enumerate_plans, live_pit_recommendation
+from f1m.telemetry import (
+    build_lap_summary,
+    build_stints,
+    detect_pit_events,
+    fia_compliance_check,
+    load_session_csv,
+)
+
 # TODO: fuel-aware modeling integration in subsequent iteration
 
 st.set_page_config(page_title="Estrategia Pit Stop F1 Manager 2024", layout="wide")

@@ -1,13 +1,15 @@
 from __future__ import annotations
+
 import argparse
 import json
-from pathlib import Path
-from typing import Dict, Union, Tuple, List
-import pandas as pd
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Tuple, Union
+
+import pandas as pd
 
 from f1m.modeling import collect_practice_data, fit_degradation_model
-from f1m.telemetry import load_session_csv, build_lap_summary
+from f1m.telemetry import build_lap_summary, load_session_csv
 
 PRACTICE_LIKE = {"Practice 1","Practice 2","Practice 3","Practice","FP1","FP2","FP3"}
 

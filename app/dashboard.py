@@ -30,6 +30,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 # Imports del proyecto (después de asegurar sys.path)
+from adapters.f1manager2024 import load_raw_csv  # noqa: E402
 from strategy import (  # noqa: E402
     build_lap_summary,
     build_stints,
@@ -42,8 +43,6 @@ from strategy_model import (  # noqa: E402
     fit_degradation_model,
     live_pit_recommendation,
 )
-
-from adapters.f1manager2024 import load_raw_csv  # noqa: E402
 
 # TODO: fuel-aware modeling integration in subsequent iteration
 
