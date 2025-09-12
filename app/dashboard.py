@@ -8,7 +8,6 @@ Solución: insertar el directorio raíz del proyecto en `sys.path` antes de impo
 """
 
 import json
-import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -24,24 +23,14 @@ except ImportError:
     px = None  # type: ignore
     go = None  # type: ignore
     _PLOTLY_AVAILABLE = False
-# Inserta raíz del repo (padre de app/) para que 'adapters' sea importable aun ejecutando dentro de app/
-_ROOT = Path(__file__).resolve().parent.parent
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
-
-# Imports del proyecto (después de asegurar sys.path)
-from adapters.f1manager2024 import load_raw_csv  # noqa: E402
-from strategy import (  # noqa: E402
+from f1m.modeling import collect_practice_data, fit_degradation_model
+from f1m.planner import enumerate_plans, live_pit_recommendation
+from f1m.telemetry import (
     build_lap_summary,
     build_stints,
     detect_pit_events,
     fia_compliance_check,
-)
-from strategy_model import (  # noqa: E402
-    collect_practice_data,
-    enumerate_plans,
-    fit_degradation_model,
-    live_pit_recommendation,
+    load_session_csv,
 )
 
 # TODO: fuel-aware modeling integration in subsequent iteration
@@ -49,14 +38,14 @@ from strategy_model import (  # noqa: E402
 
 st.set_page_config(page_title="Estrategia Pit Stop F1 Manager 2024", layout="wide")
 
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.1.0"
 st.title("Dashboard Estrategia de Paradas – F1 Manager 2024")
 st.caption(
     "Análisis de telemetría, stints, temperaturas y cumplimiento normativo FIA (simplificado)"
 )
 st.sidebar.markdown(f"**Versión:** {APP_VERSION}")
 
-BASE_DIR = _ROOT  # raíz del proyecto (más robusto para streamlit run)
+BASE_DIR = Path(__file__).resolve().parent  # raíz del proyecto (robusto para streamlit run)
 _candidate_paths = [
     Path("logs_in/exported_data"),  # relativo al cwd
     BASE_DIR / "logs_in" / "exported_data",  # relativo al archivo
@@ -112,6 +101,8 @@ def save_model_json(
             "sessions_included": sessions_used,
             "fuel_used": fuel_used,
             "saved_at": datetime.now().isoformat(timespec="seconds"),
+            "app_version": APP_VERSION,
+            "model_version": 1,
         },
         "models": {k: list(v) for k, v in models.items()},
     }
@@ -156,7 +147,7 @@ def load_and_process(path: Path, mtime: float):
     """Carga y procesa un archivo de telemetría vía adapter F1 Manager 2024.
     mtime se incluye para invalidar cache cuando el archivo cambia.
     """
-    df = load_raw_csv(path)
+    df = load_session_csv(path)
     df = detect_pit_events(df)
     lap_summary = build_lap_summary(df)
     stints = build_stints(lap_summary)
