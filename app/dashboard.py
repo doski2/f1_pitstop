@@ -10,6 +10,7 @@ Solución: insertar el directorio raíz del proyecto en `sys.path` antes de impo
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, Iterable, Tuple, Union
 
 import pandas as pd
 import streamlit as st
@@ -40,6 +41,10 @@ st.set_page_config(page_title="Estrategia Pit Stop F1 Manager 2024", layout="wid
 
 APP_VERSION = "1.1.0"
 
+# --- Utilidad para componer cadenas con tipos mixtos (p. ej., numpy object, Path, etc.) ---
+def _join_str(items: Iterable[object], sep: str = ", ") -> str:
+    return sep.join(str(x) for x in items)
+
 # --- Guardas de sesión para evitar re-ejecuciones en cascada ---
 if "init_done" not in st.session_state:
     st.session_state["init_done"] = True
@@ -63,8 +68,8 @@ for cand in _candidate_paths:
         break
 if DATA_ROOT is None:
     st.error(
-        "No se encontró la carpeta de datos en rutas intentadas: "
-        + "\n".join(str(p.resolve()) for p in _candidate_paths)
+        "No se encontró la carpeta de datos en rutas intentadas:\n"
+        + _join_str([str(p.resolve()) for p in _candidate_paths], sep="\n")
     )
     st.stop()
 
@@ -114,7 +119,7 @@ def load_precomputed_model(track: str, driver: str):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             raw = data.get("models", {})
-            models = {}
+            models: dict[str, Union[Tuple[float, float], Tuple[float, float, float]]] = {}
             for comp, coeffs in raw.items():
                 if isinstance(coeffs, list):
                     if len(coeffs) == 2:
@@ -223,11 +228,11 @@ with col_meta1:
         int(lap_summary["currentLap"].max() if not lap_summary.empty else 0),
     )
 with col_meta2:
-    unique_compounds = (
-        ", ".join(sorted(lap_summary["compound"].dropna().unique()))
-        if "compound" in lap_summary
-        else "—"
-    )
+    if "compound" in lap_summary:
+        comps = lap_summary["compound"].dropna().astype(str).unique().tolist()
+        unique_compounds = _join_str(sorted(comps), sep=", ")
+    else:
+        unique_compounds = "—"
     st.metric("Compuestos", unique_compounds)
 with col_meta3:
     st.metric("Paradas detectadas", max(len(stints) - 1, 0))
@@ -255,7 +260,7 @@ status_cols[2].markdown(
     f"**Paradas suficientes:** {'✅' if compliance['pit_stop_required'] else '❌'}"
 )
 if compliance["notes"]:
-    st.warning("\n".join(compliance["notes"]))
+    st.warning(_join_str([str(n) for n in compliance["notes"]], sep="\n"))
 st.caption(
     "Reglas simplificadas con fines analíticos; para validación oficial consultar reglamento FIA completo."
 )
@@ -432,9 +437,11 @@ with tab_strategy:
         ):
             fuel_series = practice_data["fuel"].dropna().sort_index()
             if len(fuel_series) >= 5:
-                diffs = (-fuel_series.diff()).dropna()
-                diffs = pd.to_numeric(diffs, errors="coerce").dropna().astype(float)
-                plausible = diffs[(diffs > 0) & (diffs < 5)]
+                fuel_series: pd.Series = fuel_series
+                diffs: pd.Series[float] = pd.to_numeric(
+                    (-fuel_series.diff()).dropna(), errors="coerce"
+                ).dropna().astype(float)
+                plausible: pd.Series[float] = diffs[(diffs > 0) & (diffs < 5)]
                 if len(plausible) >= 3:
                     calc_cons = float(plausible.median())
                     st.session_state["cons_per_lap_override"] = calc_cons
