@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import pandas as pd
 
@@ -88,9 +88,10 @@ def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
     if SESSION_COL_MAP["tire_age"] not in df.columns:
         comp = df.get(SESSION_COL_MAP["compound"])
         if isinstance(comp, pd.Series):
-            base_flags = comp.ne(comp.shift(1)).fillna(False)
+            # explicit boolean dtype so static checkers understand the series type
+            base_flags: pd.Series = comp.ne(comp.shift(1)).fillna(False).astype(bool)
         else:
-            base_flags = pd.Series(False, index=df.index)
+            base_flags = pd.Series(False, index=df.index, dtype=bool)
 
         if pit_status_col:
             ps = df[pit_status_col].astype(str).str.lower()
@@ -109,10 +110,14 @@ def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
     reset_zero = (tire_age == 0) & (age_prev > 0) & (lap > 0)
     age_drop = (tire_age < age_prev) & (age_prev >= 2) & (lap > 0)
 
+    # prepare comp_change as a Series variable (annotate once)
+    comp_change: pd.Series
     if isinstance(comp, pd.Series) and isinstance(comp_prev, pd.Series):
-        comp_change = comp.astype(str).ne(comp_prev.astype(str)) & (tire_age <= 1)
+        comp_change = (
+            comp.astype(str).ne(comp_prev.astype(str)) & (tire_age <= 1)
+        ).fillna(False).astype(bool)
     else:
-        comp_change = pd.Series(False, index=df.index)
+        comp_change = pd.Series([False] * len(df.index), index=df.index, dtype=bool)
 
     pit_flags = (reset_zero | age_drop | comp_change).fillna(False)
 
@@ -153,10 +158,13 @@ def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
 
     ordered = df.sort_values("timestamp") if "timestamp" in df.columns else df
 
+    # annotate once
+    pit_by_lap: pd.Series
     if "pit_stop" in ordered.columns:
         pit_by_lap = ordered.groupby(lap_col)["pit_stop"].any()
     else:
-        pit_by_lap = pd.Series(False, index=ordered[lap_col].unique())
+        uniq = list(ordered[lap_col].unique())
+        pit_by_lap = pd.Series([False] * len(uniq), index=uniq, dtype=bool)
 
     lap_last = ordered.groupby(lap_col).tail(1).copy()
     lap_last["pit_stop"] = lap_last[lap_col].map(pit_by_lap).fillna(False)
@@ -262,7 +270,7 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
     return stints
 
 
-def fia_compliance_check(stints: List[Stint], weather_series: Optional[pd.Series]) -> dict:
+def fia_compliance_check(stints: List[Stint], weather_series: Optional[pd.Series]) -> Dict[str, object]:
     """Simplified FIA compliance heuristics.
 
     - checks compound diversity in dry conditions
@@ -270,14 +278,16 @@ def fia_compliance_check(stints: List[Stint], weather_series: Optional[pd.Series
     - warns when no pit stops in long races
     """
 
-    result = {
+    # Use a local strongly-typed notes list so mypy knows its type
+    notes: List[str] = []
+    result: Dict[str, object] = {
         "used_two_compounds": True,
         "max_stint_ok": True,
         "pit_stop_required": True,
-        "notes": [],
+        "notes": notes,
     }
     if not stints:
-        result["notes"].append("No stints detected.")
+        notes.append("No stints detected.")
         return result
 
     compounds = {s.compound for s in stints}
@@ -287,15 +297,15 @@ def fia_compliance_check(stints: List[Stint], weather_series: Optional[pd.Series
 
     if is_dry and len(compounds) < 2 and total_laps >= 10:
         result["used_two_compounds"] = False
-        result["notes"].append("Fewer than two compounds used in dry conditions.")
+        notes.append("Fewer than two compounds used in dry conditions.")
 
     max_allowed = int(total_laps * 0.7)
     if any(s.total_laps > max_allowed for s in stints) and total_laps >= 15:
         result["max_stint_ok"] = False
-        result["notes"].append("A stint exceeds 70% of distance (heuristic).")
+        notes.append("A stint exceeds 70% of distance (heuristic).")
 
     if len(stints) < 2 and total_laps > 20:
         result["pit_stop_required"] = False
-        result["notes"].append("Long race with a single or no stops detected.")
+        notes.append("Long race with a single or no stops detected.")
 
     return result

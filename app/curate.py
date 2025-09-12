@@ -79,7 +79,8 @@ def compute_features(laps: pd.DataFrame) -> pd.DataFrame:
         return laps
     # Pace index relativo al mejor de la sesión (por track+sessionType)
     grp = laps.groupby(["trackName", "sessionType"], dropna=False)["lap_time_s"]
-    best_per_session = grp.transform("min")
+    # Best lap per session (typed for static analysis)
+    best_per_session: pd.Series = grp.transform("min")
     laps["pace_index"] = laps["lap_time_s"] / best_per_session
     # Degradación simple (lap time delta vs rolling median 5 vueltas) por compuesto dentro de sesión
     if "compound" in laps.columns:

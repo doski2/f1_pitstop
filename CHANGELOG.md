@@ -3,6 +3,12 @@
 
 ## v1.1.0
 
-- Refactor modular (`f1m/`)
 
-- Fixes de tiempos, auto-refresh, recomendación en vivo y chequeos de combustible
+## v1.0.2
+
+Mejoras:
+- Autorefresco de Streamlit simplificado para evitar ejecuciones múltiples.
+- Cachés ligeras para listados (tracks/sesiones/pilotos/CSV).
+- README reescrito y ordenado.
+- CI sanitizado.
+

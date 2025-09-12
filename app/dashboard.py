@@ -433,7 +433,7 @@ with tab_strategy:
             fuel_series = practice_data["fuel"].dropna().sort_index()
             if len(fuel_series) >= 5:
                 diffs = (-fuel_series.diff()).dropna()
-                diffs = pd.to_numeric(diffs, errors="coerce").dropna()
+                diffs = pd.to_numeric(diffs, errors="coerce").dropna().astype(float)
                 plausible = diffs[(diffs > 0) & (diffs < 5)]
                 if len(plausible) >= 3:
                     calc_cons = float(plausible.median())

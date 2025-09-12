@@ -6,13 +6,13 @@ import pandas as pd
 import streamlit as st
 
 try:
-    import plotly.express as px  # type: ignore
-    import plotly.graph_objects as go  # type: ignore
+    import plotly.express as px
+    import plotly.graph_objects as go
 
     _PLOTLY_AVAILABLE = True
 except ImportError:
-    px = None  # type: ignore
-    go = None  # type: ignore
+    px = None
+    go = None
     _PLOTLY_AVAILABLE = False
 from f1m.modeling import collect_practice_data, fit_degradation_model
 from f1m.planner import enumerate_plans, live_pit_recommendation
@@ -28,14 +28,16 @@ from f1m.telemetry import (
 
 st.set_page_config(page_title="Estrategia Pit Stop F1 Manager 2024", layout="wide")
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.0.2"
 st.title("Dashboard Estrategia de Paradas – F1 Manager 2024")
 st.caption(
     "Análisis de telemetría, stints, temperaturas y cumplimiento normativo FIA (simplificado)"
 )
 st.sidebar.markdown(f"**Versión:** {APP_VERSION}")
 
-BASE_DIR = Path(__file__).resolve().parent  # raíz del proyecto (robusto para streamlit run)
+BASE_DIR = (
+    Path(__file__).resolve().parent
+)  # raíz del proyecto (robusto para streamlit run)
 _candidate_paths = [
     Path("logs_in/exported_data"),
     BASE_DIR / "logs_in" / "exported_data",
@@ -64,17 +66,24 @@ def load_precomputed_model(track: str, driver: str):
             models = {}
             for comp, coeffs in raw.items():
                 if isinstance(coeffs, list):
+                    # accept both 2- and 3-element coefficient tuples
                     if len(coeffs) == 2:
                         models[comp] = (float(coeffs[0]), float(coeffs[1]))
                     elif len(coeffs) == 3:
-                        models[comp] = (float(coeffs[0]), float(coeffs[1]), float(coeffs[2]))
+                        models[comp] = (
+                            float(coeffs[0]),
+                            float(coeffs[1]),
+                            float(coeffs[2]),
+                        )
             return models, data.get("metadata", {})
         except Exception as e:  # noqa
             st.warning(f"Error cargando modelo precomputado: {e}")
     return {}, {}
 
 
-def save_model_json(track: str, driver: str, models: dict, sessions_used: list, fuel_used: bool):
+def save_model_json(
+    track: str, driver: str, models: dict, sessions_used: list, fuel_used: bool
+):
     MODELS_ROOT.mkdir(parents=True, exist_ok=True)
     out_dir = MODELS_ROOT / track
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -95,28 +104,49 @@ def save_model_json(track: str, driver: str, models: dict, sessions_used: list, 
     st.success(f"Modelo guardado en {out_path}")
 
 
-# Selección jerárquica
-tracks = sorted({p.name for p in DATA_ROOT.iterdir() if p.is_dir()})
+@st.cache_data
+def _list_tracks(root: Path) -> list[str]:
+    return sorted([p.name for p in root.iterdir() if p.is_dir()])
+
+
+@st.cache_data
+def _list_sessions(root: Path, track: str) -> list[str]:
+    base = root / track
+    return sorted([p.name for p in base.iterdir() if p.is_dir()])
+
+
+@st.cache_data
+def _list_drivers(root: Path, track: str, session: str) -> list[str]:
+    driver_root = root / track / session
+    drivers = []
+    for d in driver_root.rglob("*"):
+        if d.is_dir() and any(f.suffix == ".csv" for f in d.glob("*.csv")):
+            drivers.append(d.name)
+    return sorted(set(drivers))
+
+
+@st.cache_data
+def _list_csvs(root: Path, track: str, session: str, driver: str) -> list[str]:
+    driver_dir = root / track / session / driver
+    return sorted([f.name for f in driver_dir.glob("*.csv")])
+
+
+# Selección jerárquica: Circuito -> Sesión -> Piloto -> Archivo
+tracks = _list_tracks(DATA_ROOT)
 track = st.sidebar.selectbox("Circuito", tracks)
-
-session_root = DATA_ROOT / track
-sessions = [p.name for p in session_root.iterdir() if p.is_dir()]
-session = st.sidebar.selectbox("Sesión", sorted(sessions))
-
-driver_root = session_root / session
-drivers = []
-for d in driver_root.rglob("*"):
-    if d.is_dir() and any(f.suffix == ".csv" for f in d.glob("*.csv")):
-        drivers.append(d.name)
-drivers = sorted(set(drivers))
+sessions = _list_sessions(DATA_ROOT, track)
+session = st.sidebar.selectbox("Sesión", sessions)
+drivers = _list_drivers(DATA_ROOT, track, session)
 driver = st.sidebar.selectbox("Piloto", drivers) if drivers else None
 
 if not driver:
     st.warning("Seleccione un piloto con datos.")
     st.stop()
 
-driver_dir = driver_root / driver  # type: ignore[arg-type]
-csv_files = sorted(driver_dir.glob("*.csv"))
+driver_dir = DATA_ROOT / track / session / driver  # type: ignore[arg-type]
+csv_files = [
+    (driver_dir / name) for name in _list_csvs(DATA_ROOT, track, session, driver)
+]
 if not csv_files:
     st.warning("No hay archivos CSV para este piloto.")
     st.stop()
@@ -137,16 +167,24 @@ def load_and_process(path: Path, mtime: float):
 
 file_mtime = csv_path.stat().st_mtime
 
-col_refresh_a, col_refresh_b, col_refresh_c = st.sidebar.columns([1, 1, 1])
+col_refresh_a, col_refresh_b = st.sidebar.columns([1, 1])
 do_refresh = col_refresh_a.button("Refrescar")
-auto_refresh = col_refresh_b.checkbox("Auto", value=False, help="Auto-refrescar cada 15s")
+auto_refresh = col_refresh_b.toggle(
+    "Autorefrescar (15s)", value=False, help="Actualiza cada 15 s"
+)
 if auto_refresh:
-    st.autorefresh(interval=15000, key="auto_rfr")
+    # Autorefresco estándar: usa getattr para evitar que linters/static
+    # checkers fallen cuando `autorefresh` no existe en la versión de streamlit.
+    _autoref = getattr(st, "autorefresh", None)
+    if callable(_autoref):
+        _autoref(interval=15000, key="auto_rfr")
 if do_refresh:
     st.cache_data.clear()
 
 df, lap_summary, stints, compliance = load_and_process(csv_path, file_mtime)
-st.sidebar.caption(f"Modificado: {datetime.fromtimestamp(file_mtime).strftime('%H:%M:%S')}")
+st.sidebar.caption(
+    f"Modificado: {datetime.fromtimestamp(file_mtime).strftime('%H:%M:%S')}"
+)
 
 col_meta1, col_meta2, col_meta3 = st.columns(3)
 with col_meta1:
@@ -182,22 +220,36 @@ status_cols = st.columns(3)
 status_cols[0].markdown(
     f"**Dos compuestos (seco):** {'✅' if compliance['used_two_compounds'] else '❌'}"
 )
-status_cols[1].markdown(f"**Stint razonable:** {'✅' if compliance['max_stint_ok'] else '❌'}")
+status_cols[1].markdown(
+    f"**Stint razonable:** {'✅' if compliance['max_stint_ok'] else '❌'}"
+)
 status_cols[2].markdown(
     f"**Paradas suficientes:** {'✅' if compliance['pit_stop_required'] else '❌'}"
 )
-if compliance["notes"]:
-    st.warning("\n".join(compliance["notes"]))
+notes = compliance.get("notes", [])
+if isinstance(notes, (list, tuple)) and notes:
+    st.warning("\n".join(str(n) for n in notes))
+elif notes:
+    st.warning(str(notes))
 st.caption(
     "Reglas simplificadas con fines analíticos; para validación oficial consultar reglamento FIA completo."
 )
 
 st.subheader("Gráficos")
 if not _PLOTLY_AVAILABLE:
-    st.warning("Plotly no está instalado. Instale dependencias: `pip install -r requirements.txt`.")
+    st.warning(
+        "Plotly no está instalado. Instale dependencias: `pip install -r requirements.txt`."
+    )
     st.stop()
 tab_lap, tab_ttemps, tab_trackair, tab_evol, tab_strategy, tab_wear = st.tabs(
-    ["Lap Times", "Tº Neumáticos", "Tº Pista/Aire", "Evolución Compuesto", "Estrategia", "Desgaste"]
+    [
+        "Lap Times",
+        "Tº Neumáticos",
+        "Tº Pista/Aire",
+        "Evolución Compuesto",
+        "Estrategia",
+        "Desgaste",
+    ]
 )
 
 with tab_lap:
@@ -213,10 +265,18 @@ with tab_lap:
             y="lap_time_s",
             color="compound",
             markers=True,
-            labels={"currentLap": "Vuelta", "lap_time_s": "Tiempo (s)", "compound": "Compuesto"},
+            labels={
+                "currentLap": "Vuelta",
+                "lap_time_s": "Tiempo (s)",
+                "compound": "Compuesto",
+            },
             title="Tiempos de Vuelta",
         )
-        if "pit_stop" in lap_summary.columns and lap_summary["pit_stop"].any() and go is not None:
+        if (
+            "pit_stop" in lap_summary.columns
+            and lap_summary["pit_stop"].any()
+            and go is not None
+        ):
             pit_pts = lap_summary[lap_summary["pit_stop"]]
             fig.add_trace(
                 go.Scatter(
@@ -264,7 +324,9 @@ with tab_trackair:
         fig3.add_trace(go.Scatter(x=df["timestamp"], y=df["trackTemp"], name="Pista"))
         fig3.add_trace(go.Scatter(x=df["timestamp"], y=df["airTemp"], name="Aire"))
         fig3.update_layout(
-            title="Temperatura Pista vs Aire", xaxis_title="Tiempo", yaxis_title="°C (según juego)"
+            title="Temperatura Pista vs Aire",
+            xaxis_title="Tiempo",
+            yaxis_title="°C (según juego)",
         )
         st.plotly_chart(fig3, use_container_width=True)
     else:
@@ -295,7 +357,9 @@ with tab_strategy:
         if st.checkbox(
             "Sin prácticas. Usar vueltas iniciales de carrera como estimación provisoria"
         ):
-            initial = lap_summary[lap_summary["lap_time_s"].notna()].nsmallest(12, "currentLap")
+            initial = lap_summary[lap_summary["lap_time_s"].notna()].nsmallest(
+                12, "currentLap"
+            )
             cols_base = ["compound", "tire_age", "lap_time_s"]
             if "fuel" in initial.columns:
                 cols_base.append("fuel")
@@ -310,7 +374,9 @@ with tab_strategy:
         if "auto_start_fuel" not in st.session_state:
             st.session_state["auto_start_fuel"] = None
         if (
-            col_f2.button("Auto inicial", help="Detectar combustible inicial desde datos")
+            col_f2.button(
+                "Auto inicial", help="Detectar combustible inicial desde datos"
+            )
             and use_fuel
             and "fuel" in practice_data.columns
         ):
@@ -340,7 +406,8 @@ with tab_strategy:
             st.session_state["cons_per_lap_override"] = None
         if (
             col_f4.button(
-                "Auto consumo", help="Estimar consumo medio por vuelta usando diferencias de fuel"
+                "Auto consumo",
+                help="Estimar consumo medio por vuelta usando diferencias de fuel",
             )
             and use_fuel
             and "fuel" in practice_data.columns
@@ -348,7 +415,9 @@ with tab_strategy:
             fuel_series = practice_data["fuel"].dropna().sort_index()
             if len(fuel_series) >= 5:
                 diffs = (-fuel_series.diff()).dropna()
-                diffs = pd.to_numeric(diffs, errors="coerce").dropna()
+                diffs = pd.to_numeric(diffs, errors="coerce").dropna().astype(float)
+                # Tell static checkers this is numeric
+                diffs = pd.Series(diffs, dtype=float)
                 plausible = diffs[(diffs > 0) & (diffs < 5)]
                 if len(plausible) >= 3:
                     calc_cons = float(plausible.median())
@@ -359,7 +428,11 @@ with tab_strategy:
                         "Insuficientes diferencias plausibles de fuel para estimar consumo; usando valor base."
                     )
         base_cons = 1.4
-        if use_fuel and "fuel" in practice_data.columns and practice_data["fuel"].notna().sum() > 3:
+        if (
+            use_fuel
+            and "fuel" in practice_data.columns
+            and practice_data["fuel"].notna().sum() > 3
+        ):
             base_cons = float(practice_data["fuel"].diff().abs().median()) or base_cons
         if st.session_state.get("cons_per_lap_override") is not None:
             base_cons = st.session_state["cons_per_lap_override"]
@@ -380,7 +453,9 @@ with tab_strategy:
         if use_pre:
             pre_models, pre_meta = load_precomputed_model(track, driver)
             if pre_models:
-                st.caption(f"Modelo precomputado cargado (fuel_used={pre_meta.get('fuel_used')})")
+                st.caption(
+                    f"Modelo precomputado cargado (fuel_used={pre_meta.get('fuel_used')})"
+                )
         if pre_models:
             models = pre_models
         else:
@@ -403,7 +478,7 @@ with tab_strategy:
                         }
                     )
                 else:
-                    a, b_age = coeffs  # type: ignore
+                    a, b_age = coeffs
                     model_rows.append(
                         {
                             "Compuesto": comp,
@@ -436,7 +511,9 @@ with tab_strategy:
                 "SaudiArabia": 50,
             }
             total_race_laps_real = TRACK_LAPS.get(track, 57)
-            completed_laps = int(lap_summary["currentLap"].max()) if not lap_summary.empty else 0
+            completed_laps = (
+                int(lap_summary["currentLap"].max()) if not lap_summary.empty else 0
+            )
             col_rl1, col_rl2 = st.columns([1, 2])
             use_completed = col_rl1.checkbox(
                 "Usar vueltas completadas",
@@ -445,7 +522,9 @@ with tab_strategy:
             )
             if use_completed:
                 race_laps_horizon = max(completed_laps, 1)
-                col_rl2.markdown(f"**Vueltas para cálculo:** {race_laps_horizon} (parcial)")
+                col_rl2.markdown(
+                    f"**Vueltas para cálculo:** {race_laps_horizon} (parcial)"
+                )
             else:
                 race_laps_horizon = col_rl2.number_input(
                     "Vueltas totales carrera",
@@ -459,7 +538,11 @@ with tab_strategy:
                     )
                     race_laps_horizon = completed_laps
             pit_loss = st.number_input(
-                "Pérdida pit stop (s)", value=22.0, min_value=5.0, max_value=60.0, step=0.5
+                "Pérdida pit stop (s)",
+                value=22.0,
+                min_value=5.0,
+                max_value=60.0,
+                step=0.5,
             )
             max_stops = st.slider("Paradas máximas", 0, 4, 2)
             min_stint = st.slider("Stint mínimo (vueltas)", 3, 20, 5)

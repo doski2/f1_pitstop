@@ -12,7 +12,8 @@ if str(_APP_DIR) not in sys.path:
     sys.path.insert(0, str(_APP_DIR))
 
 try:  # pragma: no cover - simple import guard
-    from strategy import load_session_csv  # type: ignore
+    # import from app/strategy (app is added to sys.path above)
+    from strategy import load_session_csv
 except ImportError as e:  # fallback explícito
     raise ImportError("No se pudo importar 'strategy'. Verifica que exista app/strategy.py") from e
 
@@ -46,8 +47,8 @@ def load_raw_csv(path: str | Path) -> pd.DataFrame:
     # Asegura orden por timestamp si está disponible
     if "timestamp" in df.columns:
         try:
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
-            df = df.sort_values("timestamp")
+                df["timestamp"] = pd.to_datetime(df["timestamp"])
+                df = df.sort_values("timestamp")
         except Exception:  # pragma: no cover
             pass
     # Si ya están alineadas las columnas no hacemos más cambios.

@@ -260,4 +260,15 @@ def live_pit_recommendation(
         )
     if not evaluations:
         return None
-    return min(evaluations, key=lambda x: x["projected_total_remaining"])
+    # explicit selection to avoid mypy comparability complaints
+    best_eval = evaluations[0]
+    best_val = float(best_eval["projected_total_remaining"])
+    for ev in evaluations[1:]:
+        try:
+            v = float(ev["projected_total_remaining"])
+        except Exception:
+            continue
+        if v < best_val:
+            best_val = v
+            best_eval = ev
+    return best_eval
