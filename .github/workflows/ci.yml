@@ -26,6 +26,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt || true
           pip install ruff black mypy pytest || true
+          # If project uses pyproject.toml or setup.py, install in editable mode so tests can import package
+          if [ -f pyproject.toml ] || [ -f setup.py ]; then
+            python -m pip install -e . || true
+          fi
 
       - name: Ruff (lint)
         run: |
@@ -40,6 +44,8 @@ jobs:
           mypy .
 
       - name: PyTest
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           pytest -q
 
