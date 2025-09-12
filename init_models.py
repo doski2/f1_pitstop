@@ -8,15 +8,10 @@ from typing import Dict, List, Tuple, Union
 
 import pandas as pd
 
-from strategy import build_lap_summary, load_session_csv
-from strategy_model import collect_practice_data, fit_degradation_model
-
-# ---------------------------------------------------------------------------
-# Utilidades
-# ---------------------------------------------------------------------------
+from f1m.modeling import collect_practice_data, fit_degradation_model
+from f1m.telemetry import build_lap_summary, load_session_csv
 
 PRACTICE_LIKE = {"Practice 1","Practice 2","Practice 3","Practice","FP1","FP2","FP3"}
-
 
 def discover_drivers(track_dir: Path) -> List[str]:
     drivers: List[str] = []
@@ -30,9 +25,7 @@ def discover_drivers(track_dir: Path) -> List[str]:
                 drivers.append(d.name)
     return sorted(set(drivers))
 
-
 def fallback_race_sample(track_dir: Path, track: str, driver: str, max_laps: int = 12) -> pd.DataFrame:
-    """Si no hay prácticas, usa primeras vueltas de carrera para estimar modelo."""
     race_dir = track_dir / 'Race'
     if not race_dir.exists():
         return pd.DataFrame()
@@ -47,33 +40,30 @@ def fallback_race_sample(track_dir: Path, track: str, driver: str, max_laps: int
                     lap_sum = lap_sum.nsmallest(max_laps, 'currentLap')
                     lap_sum['session'] = 'RaceSample'
                     frames.append(lap_sum)
-                except Exception:  # noqa
+                except Exception:
                     continue
     if frames:
         return pd.concat(frames, ignore_index=True)
     return pd.DataFrame()
 
-
 def prepare_driver_data(data_root: Path, track: str, driver: str) -> pd.DataFrame:
     base = collect_practice_data(data_root, track, driver)
     if base.empty:
-        # usar fallback
         track_dir = data_root / track
         fallback = fallback_race_sample(track_dir, track, driver)
         return fallback
     return base
 
-
 def save_models(models: Dict[str, Union[Tuple[float, float], Tuple[float, float, float]]], out_path: Path, meta: dict):
-    # Añadir timestamp de guardado para trazabilidad
-    meta_with_ts = {**meta, 'saved_at': datetime.now().isoformat(timespec='seconds')}
     serializable = {
-        'metadata': meta_with_ts,
+        'metadata': {
+            **meta,
+            'saved_at': datetime.now().isoformat(timespec='seconds')
+        },
         'models': {comp: list(coeffs) for comp, coeffs in models.items()}
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(serializable, indent=2))
-
 
 def build_and_save(data_root: Path, track: str, driver: str, out_dir: Path) -> Path | None:
     data = prepare_driver_data(data_root, track, driver)
@@ -94,7 +84,6 @@ def build_and_save(data_root: Path, track: str, driver: str, out_dir: Path) -> P
     save_models(models, out_path, meta)
     print(f"[OK] Guardado modelo: {out_path}")
     return out_path
-
 
 def main():
     parser = argparse.ArgumentParser(description='Generar modelos iniciales de degradación por pista y piloto')
@@ -121,7 +110,6 @@ def main():
             return
         for drv in drivers:
             build_and_save(data_root, args.track, drv, out_dir)
-
 
 if __name__ == '__main__':
     main()
