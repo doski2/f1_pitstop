@@ -10,7 +10,7 @@ Solución: insertar el directorio raíz del proyecto en `sys.path` antes de impo
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, Tuple, Union
+from typing import Iterable, Tuple, Union
 
 import pandas as pd
 import streamlit as st
@@ -259,8 +259,16 @@ status_cols[1].markdown(f"**Stint razonable:** {'✅' if compliance['max_stint_o
 status_cols[2].markdown(
     f"**Paradas suficientes:** {'✅' if compliance['pit_stop_required'] else '❌'}"
 )
-if compliance["notes"]:
-    st.warning(_join_str([str(n) for n in compliance["notes"]], sep="\n"))
+# --- FIX: manejar 'notes' aunque no sea iterable ---
+notes_val = compliance.get("notes")
+if notes_val:
+    if isinstance(notes_val, (list, tuple, set)):
+        st.warning(_join_str([str(n) for n in notes_val], sep="\n"))
+    elif isinstance(notes_val, str):
+        st.warning(notes_val)
+    else:
+        # objeto único no iterable
+        st.warning(str(notes_val))
 st.caption(
     "Reglas simplificadas con fines analíticos; para validación oficial consultar reglamento FIA completo."
 )
@@ -603,7 +611,7 @@ with tab_strategy:
                 st.markdown("---")
                 st.subheader("Recomendación en Vivo")
                 current_lap = int(lap_summary["currentLap"].max())
-                last_row = lap_summary[lap_summary["currentLap"] == current_lap].tail(1)
+                last_row = lap_summary[lap_summary["current_lap"] == current_lap].tail(1)
                 comp_now = last_row["compound"].iloc[0] if not last_row.empty else None
                 age_now = int(last_row["tire_age"].iloc[0]) if not last_row.empty else 0
                 current_fuel = (
