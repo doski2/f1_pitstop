@@ -1,3 +1,15 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.env
+dist/
+build/
+*.parquet
+logs_in/
+models/
+.streamlit/
+.idea/
 # Python
 __pycache__/
 *.py[cod]
