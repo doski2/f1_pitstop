@@ -1,11 +1,9 @@
 {
     "MD013": false,
-    "MD022": {
-        "lines_above": 1,
-        "lines_below": 1
-    },
+    "MD022": false,
     "MD033": false,
     "MD010": false,
     "MD012": false,
-    "MD032": false
+    "MD032": false,
+    "MD031": false
 }
