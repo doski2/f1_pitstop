@@ -7,8 +7,8 @@ Python no verá el paquete hermano `adapters/` en el nivel raíz y fallará con
 Solución: insertar el directorio raíz del proyecto en `sys.path` antes de importar.
 """
 
-from datetime import datetime
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -23,15 +23,15 @@ except ImportError:
     px = None  # type: ignore
     go = None  # type: ignore
     _PLOTLY_AVAILABLE = False
-from f1m.telemetry import (
-    load_session_csv,
-    detect_pit_events,
-    build_lap_summary,
-    build_stints,
-    fia_compliance_check,
-)
 from f1m.modeling import collect_practice_data, fit_degradation_model
 from f1m.planner import enumerate_plans, live_pit_recommendation
+from f1m.telemetry import (
+    build_lap_summary,
+    build_stints,
+    detect_pit_events,
+    fia_compliance_check,
+    load_session_csv,
+)
 
 # TODO: fuel-aware modeling integration in subsequent iteration
 
