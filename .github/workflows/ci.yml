@@ -1,5 +1,4 @@
-# CI workflow for f1_pitstop
-name: CI
+﻿name: CI
 
 on:
   push:
