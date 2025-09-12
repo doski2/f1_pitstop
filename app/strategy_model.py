@@ -20,48 +20,58 @@ def collect_practice_data(data_root: Path, track: str, driver: str) -> pd.DataFr
     for session_dir in track_dir.iterdir():
         if not session_dir.is_dir():
             continue
-        if session_dir.name not in PRACTICE_SESSION_NAMES and not session_dir.name.startswith('Practice'):
+        if session_dir.name not in PRACTICE_SESSION_NAMES and not session_dir.name.startswith(
+            "Practice"
+        ):
             continue
         # Search within driver subdirs
         for d in session_dir.rglob(driver):
             if d.is_dir():
-                for csv in d.glob('*.csv'):
+                for csv in d.glob("*.csv"):
                     try:
                         df = load_session_csv(csv)
                         lap_sum = build_lap_summary(df)
-                        lap_sum['session'] = session_dir.name
+                        lap_sum["session"] = session_dir.name
                         frames.append(lap_sum)
                     except Exception:  # noqa
                         continue
     if frames:
         out = pd.concat(frames, ignore_index=True)
         # Clean lap_time_s (drop None / zeros)
-        out = out[(out['lap_time_s'].notna()) & (out['lap_time_s'] > 0)]
+        out = out[(out["lap_time_s"].notna()) & (out["lap_time_s"] > 0)]
         return out
     return pd.DataFrame()
 
 
-def fit_degradation_model(practice_laps: pd.DataFrame) -> Dict[str, Union[Tuple[float, float], Tuple[float, float, float]]]:
+def fit_degradation_model(
+    practice_laps: pd.DataFrame,
+) -> Dict[str, Union[Tuple[float, float], Tuple[float, float, float]]]:
     models: Dict[str, Union[Tuple[float, float], Tuple[float, float, float]]] = {}
     if practice_laps.empty:
         return models
-    fuel_available = 'fuel' in practice_laps.columns and practice_laps['fuel'].notna().sum() >= 5 and practice_laps['fuel'].std() > 0.5
-    for comp_raw, grp in practice_laps.groupby('compound'):
+    fuel_available = (
+        "fuel" in practice_laps.columns
+        and practice_laps["fuel"].notna().sum() >= 5
+        and practice_laps["fuel"].std() > 0.5
+    )
+    for comp_raw, grp in practice_laps.groupby("compound"):
         comp = str(comp_raw)
-        if grp['tire_age'].nunique() < 2 or len(grp) < 5:
+        if grp["tire_age"].nunique() < 2 or len(grp) < 5:
             continue
-        cols = ['tire_age', 'lap_time_s'] + (['fuel'] if fuel_available and 'fuel' in grp.columns else [])
+        cols = ["tire_age", "lap_time_s"] + (
+            ["fuel"] if fuel_available and "fuel" in grp.columns else []
+        )
         dfc = grp[cols].dropna()
         if len(dfc) < 5:
             continue
-        z = (dfc['lap_time_s'] - dfc['lap_time_s'].mean()) / (dfc['lap_time_s'].std(ddof=0) or 1)
+        z = (dfc["lap_time_s"] - dfc["lap_time_s"].mean()) / (dfc["lap_time_s"].std(ddof=0) or 1)
         dfc = dfc[np.abs(z) < 3]
         if len(dfc) < 5:
             continue
-        X_age = dfc['tire_age'].values.astype(float)
-        y = dfc['lap_time_s'].values.astype(float)
-        if fuel_available and 'fuel' in dfc.columns:
-            fuel = dfc['fuel'].values.astype(float)
+        X_age = dfc["tire_age"].values.astype(float)
+        y = dfc["lap_time_s"].values.astype(float)
+        if fuel_available and "fuel" in dfc.columns:
+            fuel = dfc["fuel"].values.astype(float)
             A = np.column_stack([np.ones_like(X_age), X_age, fuel])
             coef, *_ = np.linalg.lstsq(A, y, rcond=None)
             a, b_age, c_fuel = map(float, coef)
@@ -85,25 +95,35 @@ def stint_time(intercept: float, slope: float, laps: int) -> float:
 
 def max_stint_length(practice_laps: pd.DataFrame, compound: str) -> int:
     """Heuristic maximum stint length for compound."""
-    subset = practice_laps[practice_laps['compound'] == compound]
+    subset = practice_laps[practice_laps["compound"] == compound]
     if subset.empty:
         # Fallback typical limits
-        if compound.lower().startswith('soft'):
+        if compound.lower().startswith("soft"):
             return 18
-        if compound.lower().startswith('medium'):
+        if compound.lower().startswith("medium"):
             return 28
-        if compound.lower().startswith('hard'):
+        if compound.lower().startswith("hard"):
             return 40
         return 25
-    max_age = int(subset['tire_age'].max())
+    max_age = int(subset["tire_age"].max())
     # Add small buffer
     return max_age + 2
 
 
-def enumerate_plans(race_laps: int, compounds: List[str], models: Dict[str, Union[Tuple[float, float], Tuple[float, float, float]]],
-                    practice_laps: pd.DataFrame, pit_loss: float, max_stops: int = 2, min_stint: int = 5,
-                    require_two_compounds: bool = True, top_k: int = 3,
-                    use_fuel: bool = False, start_fuel: float = 0.0, cons_per_lap: float = 0.0) -> List[dict]:
+def enumerate_plans(
+    race_laps: int,
+    compounds: List[str],
+    models: Dict[str, Union[Tuple[float, float], Tuple[float, float, float]]],
+    practice_laps: pd.DataFrame,
+    pit_loss: float,
+    max_stops: int = 2,
+    min_stint: int = 5,
+    require_two_compounds: bool = True,
+    top_k: int = 3,
+    use_fuel: bool = False,
+    start_fuel: float = 0.0,
+    cons_per_lap: float = 0.0,
+) -> List[dict]:
     """Brute force enumeration of strategies up to max_stops (so max_stops+1 stints)."""
     best: List[dict] = []
 
@@ -138,11 +158,11 @@ def enumerate_plans(race_laps: int, compounds: List[str], models: Dict[str, Unio
                 a, b_age = coeffs[0], coeffs[1]
                 stint_time_val = stint_time(a, b_age, laps)
             total += stint_time_val
-            details.append({'compound': comp, 'laps': laps, 'pred_time': stint_time_val})
+            details.append({"compound": comp, "laps": laps, "pred_time": stint_time_val})
         if not feasible:
             return
         total += pit_loss * (len(seq) - 1)
-        best.append({'stints': details, 'total_time': total, 'stops': len(seq) - 1})
+        best.append({"stints": details, "total_time": total, "stops": len(seq) - 1})
 
     def recurse(rem_laps: int, current: List[Tuple[str, int]], depth: int):
         if rem_laps == 0:
@@ -160,17 +180,23 @@ def enumerate_plans(race_laps: int, compounds: List[str], models: Dict[str, Unio
                 recurse(rem_laps - laps, current + [(comp, laps)], depth + 1)
 
     recurse(race_laps, [], 0)
-    best.sort(key=lambda x: x['total_time'])
+    best.sort(key=lambda x: x["total_time"])
     return best[:top_k]
 
 
-def live_pit_recommendation(current_lap: int, total_race_laps: int, current_compound: str,
-                             current_tire_age: int, models: Dict[str, Union[Tuple[float, float], Tuple[float, float, float]]],
-                             practice_laps: pd.DataFrame, pit_loss: float,
-                             window: int = 12,
-                             use_fuel: bool = False,
-                             current_fuel: float = 0.0,
-                             cons_per_lap: float = 0.0) -> Optional[dict]:
+def live_pit_recommendation(
+    current_lap: int,
+    total_race_laps: int,
+    current_compound: str,
+    current_tire_age: int,
+    models: Dict[str, Union[Tuple[float, float], Tuple[float, float, float]]],
+    practice_laps: pd.DataFrame,
+    pit_loss: float,
+    window: int = 12,
+    use_fuel: bool = False,
+    current_fuel: float = 0.0,
+    cons_per_lap: float = 0.0,
+) -> Optional[dict]:
     """Evaluate candidate pit laps within window returning minimal projected total time to finish.
     Simple model: cost = remaining current compound laps + (pit_loss) + optimal final compound constant pace using best compound.
     """
@@ -224,8 +250,14 @@ def live_pit_recommendation(current_lap: int, total_race_laps: int, current_comp
         if best_comp_alt is None or best_tail_time is None:
             continue
         total = time_current + pit_loss + best_tail_time
-        evaluations.append({'pit_on_lap': current_lap + pit_in, 'continue_laps': pit_in, 'new_compound': best_comp_alt,
-                            'projected_total_remaining': total})
+        evaluations.append(
+            {
+                "pit_on_lap": current_lap + pit_in,
+                "continue_laps": pit_in,
+                "new_compound": best_comp_alt,
+                "projected_total_remaining": total,
+            }
+        )
     if not evaluations:
         return None
-    return min(evaluations, key=lambda x: x['projected_total_remaining'])
+    return min(evaluations, key=lambda x: x["projected_total_remaining"])

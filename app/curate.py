@@ -6,9 +6,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-RAW_COLUMNS_PRIMARY_KEYS = ["timestamp","driverNumber","currentLap","turnNumber"]
+RAW_COLUMNS_PRIMARY_KEYS = ["timestamp", "driverNumber", "currentLap", "turnNumber"]
 
-SESSION_ID_COLS = ["trackName","sessionType","driverFirstName","driverLastName","teamName","driverNumber"]
+SESSION_ID_COLS = [
+    "trackName",
+    "sessionType",
+    "driverFirstName",
+    "driverLastName",
+    "teamName",
+    "driverNumber",
+]
 
 OUTPUT_BASE = Path("curated")
 
@@ -33,7 +40,7 @@ def load_track_raw(track_dir: Path) -> pd.DataFrame:
     if "timestamp" in df.columns:
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
     # Orden básico
-    sort_cols = [c for c in ["timestamp","currentLap","turnNumber"] if c in df.columns]
+    sort_cols = [c for c in ["timestamp", "currentLap", "turnNumber"] if c in df.columns]
     if sort_cols:
         df = df.sort_values(sort_cols).reset_index(drop=True)
     # Eliminar duplicados exactos en claves principales disponibles
@@ -44,7 +51,7 @@ def load_track_raw(track_dir: Path) -> pd.DataFrame:
 
 
 def per_lap_last_samples(df: pd.DataFrame) -> pd.DataFrame:
-    required = {"currentLap","timestamp"}
+    required = {"currentLap", "timestamp"}
     if not required.issubset(df.columns):
         return pd.DataFrame()
     # Tomar última muestra por vuelta (timestamp máximo) dentro de cada sesión / piloto
@@ -53,17 +60,17 @@ def per_lap_last_samples(df: pd.DataFrame) -> pd.DataFrame:
     # Calcular lap_time_s por diferencia de timestamp con vuelta anterior dentro de la misma sesión/piloto
     last = last.sort_values(group_cols)
     id_cols = [c for c in SESSION_ID_COLS if c in last.columns]
-    last['prev_timestamp'] = last.groupby(id_cols)['timestamp'].shift(1)
-    last['lap_time_s'] = (last['timestamp'] - last['prev_timestamp']).dt.total_seconds()
+    last["prev_timestamp"] = last.groupby(id_cols)["timestamp"].shift(1)
+    last["lap_time_s"] = (last["timestamp"] - last["prev_timestamp"]).dt.total_seconds()
     # Filtrar vueltas inválidas (lap==0 o lap_time_s <=0)
-    last = last[last['currentLap'] > 0]
+    last = last[last["currentLap"] > 0]
     # Señalar outliers básicos
-    q1 = last['lap_time_s'].quantile(0.25)
-    q3 = last['lap_time_s'].quantile(0.75)
+    q1 = last["lap_time_s"].quantile(0.25)
+    q3 = last["lap_time_s"].quantile(0.75)
     iqr = q3 - q1
-    upper = q3 + 3*iqr
-    lower = max(0, q1 - 3*iqr)
-    last['lap_outlier'] = (last['lap_time_s'] < lower) | (last['lap_time_s'] > upper)
+    upper = q3 + 3 * iqr
+    lower = max(0, q1 - 3 * iqr)
+    last["lap_outlier"] = (last["lap_time_s"] < lower) | (last["lap_time_s"] > upper)
     return last
 
 
@@ -71,31 +78,40 @@ def compute_features(laps: pd.DataFrame) -> pd.DataFrame:
     if laps.empty:
         return laps
     # Pace index relativo al mejor de la sesión (por track+sessionType)
-    grp = laps.groupby(['trackName','sessionType'], dropna=False)['lap_time_s']
-    best_per_session = grp.transform('min')
-    laps['pace_index'] = laps['lap_time_s'] / best_per_session
+    grp = laps.groupby(["trackName", "sessionType"], dropna=False)["lap_time_s"]
+    best_per_session = grp.transform("min")
+    laps["pace_index"] = laps["lap_time_s"] / best_per_session
     # Degradación simple (lap time delta vs rolling median 5 vueltas) por compuesto dentro de sesión
-    if 'compound' in laps.columns:
-        laps['rolling_med_5'] = laps.groupby(['trackName','sessionType','compound'])['lap_time_s'].transform(lambda s: s.rolling(5, min_periods=2).median())
-        laps['pace_delta_rolling'] = laps['lap_time_s'] - laps['rolling_med_5']
+    if "compound" in laps.columns:
+        laps["rolling_med_5"] = laps.groupby(["trackName", "sessionType", "compound"])[
+            "lap_time_s"
+        ].transform(lambda s: s.rolling(5, min_periods=2).median())
+        laps["pace_delta_rolling"] = laps["lap_time_s"] - laps["rolling_med_5"]
     # Fuel effect approximate slope per session (regresión lineal simple si hay fuel)
-    if 'fuel' in laps.columns and laps['fuel'].notna().sum() > 10:
+    if "fuel" in laps.columns and laps["fuel"].notna().sum() > 10:
+
         def _fuel_slope(g: pd.DataFrame):
-            g2 = g.dropna(subset=['fuel','lap_time_s'])
+            g2 = g.dropna(subset=["fuel", "lap_time_s"])
             if len(g2) < 6:
                 return np.nan
-            x = g2['fuel'].to_numpy()
-            y = g2['lap_time_s'].to_numpy()
+            x = g2["fuel"].to_numpy()
+            y = g2["lap_time_s"].to_numpy()
             # slope (least squares)
             xm = np.mean(x)
             ym = np.mean(y)
-            denom = ((x - xm)**2).sum()
+            denom = ((x - xm) ** 2).sum()
             if denom == 0:
                 return np.nan
-            slope = ((x - xm)*(y - ym)).sum()/denom
+            slope = ((x - xm) * (y - ym)).sum() / denom
             return slope
-        slopes = laps.groupby(['trackName','sessionType']).apply(_fuel_slope).rename('fuel_slope').reset_index()
-        laps = laps.merge(slopes, on=['trackName','sessionType'], how='left')
+
+        slopes = (
+            laps.groupby(["trackName", "sessionType"])
+            .apply(_fuel_slope)
+            .rename("fuel_slope")
+            .reset_index()
+        )
+        laps = laps.merge(slopes, on=["trackName", "sessionType"], how="left")
     return laps
 
 
@@ -103,8 +119,22 @@ def save_partitioned(laps: pd.DataFrame, base: Path = OUTPUT_BASE) -> None:
     if laps.empty:
         print("[INFO] Nada que guardar.")
         return
-    for (track, session, driver_num, first, last), sub in laps.groupby([c for c in ['trackName','sessionType','driverNumber','driverFirstName','driverLastName'] if c in laps.columns]):
-        out_dir = base / f"track={track}" / f"session={session}" / f"driver={driver_num}_{first}_{last}"
+    for (track, session, driver_num, first, last), sub in laps.groupby(
+        [
+            c
+            for c in [
+                "trackName",
+                "sessionType",
+                "driverNumber",
+                "driverFirstName",
+                "driverLastName",
+            ]
+            if c in laps.columns
+        ]
+    ):
+        out_dir = (
+            base / f"track={track}" / f"session={session}" / f"driver={driver_num}_{first}_{last}"
+        )
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / "laps.parquet"
         sub.to_parquet(out_path, index=False)
@@ -113,13 +143,26 @@ def save_partitioned(laps: pd.DataFrame, base: Path = OUTPUT_BASE) -> None:
 def build_summary(laps: pd.DataFrame) -> pd.DataFrame:
     if laps.empty:
         return laps
-    summary = (laps
-        .groupby(['trackName','sessionType','driverNumber','driverFirstName','driverLastName','compound'], dropna=False)
-        .agg(laps=('currentLap','nunique'),
-             best_lap=('lap_time_s','min'),
-             avg_lap=('lap_time_s','mean'),
-             deg_est=('pace_delta_rolling','mean'))
-        .reset_index())
+    summary = (
+        laps.groupby(
+            [
+                "trackName",
+                "sessionType",
+                "driverNumber",
+                "driverFirstName",
+                "driverLastName",
+                "compound",
+            ],
+            dropna=False,
+        )
+        .agg(
+            laps=("currentLap", "nunique"),
+            best_lap=("lap_time_s", "min"),
+            avg_lap=("lap_time_s", "mean"),
+            deg_est=("pace_delta_rolling", "mean"),
+        )
+        .reset_index()
+    )
     return summary
 
 
@@ -146,6 +189,8 @@ def main(track_path: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Curación de datos de telemetría por pista")
-    parser.add_argument("track_path", help="Ruta a carpeta de pista (por ejemplo logs_in/exported_data/Bahrain)")
+    parser.add_argument(
+        "track_path", help="Ruta a carpeta de pista (por ejemplo logs_in/exported_data/Bahrain)"
+    )
     args = parser.parse_args()
     main(args.track_path)

@@ -3,6 +3,7 @@
 - `live_pit_recommendation`: ventana local que sugiere vuelta de parada y compuesto.
 Incluye chequeos de viabilidad por combustible cuando hay modelo con fuel.
 """
+
 from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple, Union

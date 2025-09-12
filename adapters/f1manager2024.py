@@ -14,9 +14,7 @@ if str(_APP_DIR) not in sys.path:
 try:  # pragma: no cover - simple import guard
     from strategy import load_session_csv  # type: ignore
 except ImportError as e:  # fallback explícito
-    raise ImportError(
-        "No se pudo importar 'strategy'. Verifica que exista app/strategy.py"
-    ) from e
+    raise ImportError("No se pudo importar 'strategy'. Verifica que exista app/strategy.py") from e
 
 
 CANONICAL_COLS = [

@@ -145,8 +145,7 @@ def _parse_lap_time_to_seconds(v) -> Optional[float]:
 
 
 def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
-    """Return one-row-per-lap summary with lap_time_s, compound, tire_age, temps, fuel, pit_stop.
-    """
+    """Return one-row-per-lap summary with lap_time_s, compound, tire_age, temps, fuel, pit_stop."""
 
     lap_col = SESSION_COL_MAP["lap"]
     if lap_col not in df.columns:
@@ -186,19 +185,29 @@ def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
     return lap_last[existing].reset_index(drop=True)
 
 
-def _aggregate_stint(
-    stint_rows: pd.DataFrame, stint_number: int, compound: str
-) -> Stint:
+def _aggregate_stint(stint_rows: pd.DataFrame, stint_number: int, compound: str) -> Stint:
     """Aggregate metrics for a contiguous block of laps belonging to a single stint."""
 
     metrics = {
         "avg_lap_time": stint_rows["lap_time_s"].mean(skipna=True),
-        "avg_track_temp": stint_rows.get(SESSION_COL_MAP["track_temp"], pd.Series(dtype=float)).mean(skipna=True),
-        "avg_air_temp": stint_rows.get(SESSION_COL_MAP["air_temp"], pd.Series(dtype=float)).mean(skipna=True),
-        "avg_fl_temp": stint_rows.get(SESSION_COL_MAP["fl_temp"], pd.Series(dtype=float)).mean(skipna=True),
-        "avg_fr_temp": stint_rows.get(SESSION_COL_MAP["fr_temp"], pd.Series(dtype=float)).mean(skipna=True),
-        "avg_rl_temp": stint_rows.get(SESSION_COL_MAP["rl_temp"], pd.Series(dtype=float)).mean(skipna=True),
-        "avg_rr_temp": stint_rows.get(SESSION_COL_MAP["rr_temp"], pd.Series(dtype=float)).mean(skipna=True),
+        "avg_track_temp": stint_rows.get(
+            SESSION_COL_MAP["track_temp"], pd.Series(dtype=float)
+        ).mean(skipna=True),
+        "avg_air_temp": stint_rows.get(SESSION_COL_MAP["air_temp"], pd.Series(dtype=float)).mean(
+            skipna=True
+        ),
+        "avg_fl_temp": stint_rows.get(SESSION_COL_MAP["fl_temp"], pd.Series(dtype=float)).mean(
+            skipna=True
+        ),
+        "avg_fr_temp": stint_rows.get(SESSION_COL_MAP["fr_temp"], pd.Series(dtype=float)).mean(
+            skipna=True
+        ),
+        "avg_rl_temp": stint_rows.get(SESSION_COL_MAP["rl_temp"], pd.Series(dtype=float)).mean(
+            skipna=True
+        ),
+        "avg_rr_temp": stint_rows.get(SESSION_COL_MAP["rr_temp"], pd.Series(dtype=float)).mean(
+            skipna=True
+        ),
     }
 
     return Stint(
@@ -225,8 +234,10 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
 
     ordered = lap_summary.sort_values(lap_col)
 
-    change_mask = ordered.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str)).astype(str).ne(
-        ordered.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str)).shift(1).astype(str)
+    change_mask = (
+        ordered.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str))
+        .astype(str)
+        .ne(ordered.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str)).shift(1).astype(str))
     )
     tire_age = ordered.get(SESSION_COL_MAP["tire_age"])
     if tire_age is not None:
@@ -241,7 +252,11 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
     for stint_number, (_, rows) in enumerate(ordered.groupby(stint_ids), start=1):
         if rows.empty:
             continue
-        compound = str(rows.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str)).dropna().iloc[0]) if SESSION_COL_MAP["compound"] in rows.columns else "unknown"
+        compound = (
+            str(rows.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str)).dropna().iloc[0])
+            if SESSION_COL_MAP["compound"] in rows.columns
+            else "unknown"
+        )
         stints.append(_aggregate_stint(rows, stint_number, compound))
 
     return stints
@@ -255,7 +270,12 @@ def fia_compliance_check(stints: List[Stint], weather_series: Optional[pd.Series
     - warns when no pit stops in long races
     """
 
-    result = {"used_two_compounds": True, "max_stint_ok": True, "pit_stop_required": True, "notes": []}
+    result = {
+        "used_two_compounds": True,
+        "max_stint_ok": True,
+        "pit_stop_required": True,
+        "notes": [],
+    }
     if not stints:
         result["notes"].append("No stints detected.")
         return result

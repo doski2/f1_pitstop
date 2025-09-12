@@ -70,14 +70,17 @@ if DATA_ROOT is None:
 
 MODELS_ROOT = BASE_DIR / "models"
 
+
 # ---------- utilidades cacheadas para listar disco ----------
 @st.cache_data(show_spinner=False)
 def list_tracks(data_root: Path) -> list[str]:
     return sorted([p.name for p in data_root.iterdir() if p.is_dir()])
 
+
 @st.cache_data(show_spinner=False)
 def list_sessions_for(track_dir: Path) -> list[str]:
     return sorted([p.name for p in track_dir.iterdir() if p.is_dir()])
+
 
 @st.cache_data(show_spinner=False)
 def list_drivers_for(session_dir: Path) -> list[str]:
@@ -87,6 +90,7 @@ def list_drivers_for(session_dir: Path) -> list[str]:
         if d.is_dir() and any(f.suffix == ".csv" for f in d.glob("*.csv")):
             drivers.add(d.name)
     return sorted(drivers)
+
 
 # ---------- autorefresh con guarda ----------
 def autorefresh_guarded(enabled: bool, interval_ms: int = 15000):
@@ -127,9 +131,7 @@ def load_precomputed_model(track: str, driver: str):
     return {}, {}
 
 
-def save_model_json(
-    track: str, driver: str, models: dict, sessions_used: list, fuel_used: bool
-):
+def save_model_json(track: str, driver: str, models: dict, sessions_used: list, fuel_used: bool):
     MODELS_ROOT.mkdir(parents=True, exist_ok=True)
     out_dir = MODELS_ROOT / track
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -198,9 +200,7 @@ file_mtime = csv_path.stat().st_mtime
 
 col_refresh_a, col_refresh_b, col_refresh_c = st.sidebar.columns([1, 1, 1])
 do_refresh = col_refresh_a.button("Refrescar")
-auto_refresh = col_refresh_b.checkbox(
-    "Auto", value=False, help="Auto-refrescar cada 15s"
-)
+auto_refresh = col_refresh_b.checkbox("Auto", value=False, help="Auto-refrescar cada 15s")
 if auto_refresh:
     _autoref = getattr(st, "autorefresh", None)
     if callable(_autoref):
@@ -214,9 +214,7 @@ if do_refresh:
     st.cache_data.clear()
 
 df, lap_summary, stints, compliance = load_and_process(csv_path, file_mtime)
-st.sidebar.caption(
-    f"Modificado: {datetime.fromtimestamp(file_mtime).strftime('%H:%M:%S')}"
-)
+st.sidebar.caption(f"Modificado: {datetime.fromtimestamp(file_mtime).strftime('%H:%M:%S')}")
 
 col_meta1, col_meta2, col_meta3 = st.columns(3)
 with col_meta1:
@@ -252,9 +250,7 @@ status_cols = st.columns(3)
 status_cols[0].markdown(
     f"**Dos compuestos (seco):** {'✅' if compliance['used_two_compounds'] else '❌'}"
 )
-status_cols[1].markdown(
-    f"**Stint razonable:** {'✅' if compliance['max_stint_ok'] else '❌'}"
-)
+status_cols[1].markdown(f"**Stint razonable:** {'✅' if compliance['max_stint_ok'] else '❌'}")
 status_cols[2].markdown(
     f"**Paradas suficientes:** {'✅' if compliance['pit_stop_required'] else '❌'}"
 )
@@ -266,9 +262,7 @@ st.caption(
 
 st.subheader("Gráficos")
 if not _PLOTLY_AVAILABLE:
-    st.warning(
-        "Plotly no está instalado. Instale dependencias: `pip install -r requirements.txt`."
-    )
+    st.warning("Plotly no está instalado. Instale dependencias: `pip install -r requirements.txt`.")
     st.stop()
 tab_lap, tab_ttemps, tab_trackair, tab_evol, tab_strategy, tab_wear = st.tabs(
     [
@@ -302,11 +296,7 @@ with tab_lap:
             title="Tiempos de Vuelta",
         )
         # Añadir marcadores de pit stop
-        if (
-            "pit_stop" in lap_summary.columns
-            and lap_summary["pit_stop"].any()
-            and go is not None
-        ):
+        if "pit_stop" in lap_summary.columns and lap_summary["pit_stop"].any() and go is not None:
             pit_pts = lap_summary[lap_summary["pit_stop"]]
             fig.add_trace(
                 go.Scatter(
@@ -387,9 +377,7 @@ with tab_strategy:
         if st.checkbox(
             "Sin prácticas. Usar vueltas iniciales de carrera como estimación provisoria"
         ):
-            initial = lap_summary[lap_summary["lap_time_s"].notna()].nsmallest(
-                12, "currentLap"
-            )
+            initial = lap_summary[lap_summary["lap_time_s"].notna()].nsmallest(12, "currentLap")
             cols_base = ["compound", "tire_age", "lap_time_s"]
             if "fuel" in initial.columns:
                 cols_base.append("fuel")
@@ -405,9 +393,7 @@ with tab_strategy:
         if "auto_start_fuel" not in st.session_state:
             st.session_state["auto_start_fuel"] = None
         if (
-            col_f2.button(
-                "Auto inicial", help="Detectar combustible inicial desde datos"
-            )
+            col_f2.button("Auto inicial", help="Detectar combustible inicial desde datos")
             and use_fuel
             and "fuel" in practice_data.columns
         ):
@@ -458,11 +444,7 @@ with tab_strategy:
                         "Insuficientes diferencias plausibles de fuel para estimar consumo; usando valor base."
                     )
         base_cons = 1.4
-        if (
-            use_fuel
-            and "fuel" in practice_data.columns
-            and practice_data["fuel"].notna().sum() > 3
-        ):
+        if use_fuel and "fuel" in practice_data.columns and practice_data["fuel"].notna().sum() > 3:
             base_cons = float(practice_data["fuel"].diff().abs().median()) or base_cons
         if st.session_state.get("cons_per_lap_override") is not None:
             base_cons = st.session_state["cons_per_lap_override"]
@@ -483,9 +465,7 @@ with tab_strategy:
         if use_pre:
             pre_models, pre_meta = load_precomputed_model(track, driver)
             if pre_models:
-                st.caption(
-                    f"Modelo precomputado cargado (fuel_used={pre_meta.get('fuel_used')})"
-                )
+                st.caption(f"Modelo precomputado cargado (fuel_used={pre_meta.get('fuel_used')})")
         if pre_models:
             models = pre_models
         else:
@@ -543,9 +523,7 @@ with tab_strategy:
                 "SaudiArabia": 50,
             }
             total_race_laps_real = TRACK_LAPS.get(track, 57)
-            completed_laps = (
-                int(lap_summary["currentLap"].max()) if not lap_summary.empty else 0
-            )
+            completed_laps = int(lap_summary["currentLap"].max()) if not lap_summary.empty else 0
             col_rl1, col_rl2 = st.columns([1, 2])
             use_completed = col_rl1.checkbox(
                 "Usar vueltas completadas",
@@ -554,9 +532,7 @@ with tab_strategy:
             )
             if use_completed:
                 race_laps_horizon = max(completed_laps, 1)
-                col_rl2.markdown(
-                    f"**Vueltas para cálculo:** {race_laps_horizon} (parcial)"
-                )
+                col_rl2.markdown(f"**Vueltas para cálculo:** {race_laps_horizon} (parcial)")
             else:
                 race_laps_horizon = col_rl2.number_input(
                     "Vueltas totales carrera",
