@@ -75,6 +75,17 @@ Curación de CSV → dataset por vuelta + features (pace_index, rolling medians,
 ### `init_models.py`
 Genera modelos base por pista/piloto usando prácticas o fallback de primeras vueltas de carrera.
 
+Nota de compatibilidad:
+- El archivo `init_models.py` en la raíz del proyecto ahora es un shim que delega a `app.init_models` para mantener compatibilidad con invocaciones antiguas.
+- Para ejecutar la utilidad directamente desde el paquete canónico use:
+```bash
+python -m app.init_models [args]
+```
+o
+```bash
+python app/init_models.py [args]
+```
+
 ## 7) Añadir circuito
 Edita `TRACK_LAPS` en `dashboard.py` y añade `'NuevoCircuito': <vueltas>`.
 
