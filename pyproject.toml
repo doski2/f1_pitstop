@@ -1,0 +1,44 @@
+[project]
+name = "f1m-manager"
+version = "1.1.0"
+description = "Estrategia de paradas F1 Manager 2024 – dashboard + modeling + planner"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Ivan" }]
+license = { text = "MIT" }
+keywords = ["f1", "pitstop", "strategy", "telemetry", "dashboard"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39","py310","py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+extend-select = ["I"]
+fix = true
+exclude = [".git",".venv","build","dist","__pycache__"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-sort-within-sections = true
+known-first-party = ["f1m"]
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+no_implicit_optional = true
+check_untyped_defs = false
+disallow_untyped_defs = false
+pretty = true
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

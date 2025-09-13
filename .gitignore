@@ -1,0 +1,48 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.env
+dist/
+build/
+*.parquet
+logs_in/
+models/
+.streamlit/
+.idea/
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+
+# Envs
+.venv/
+venv/
+env/
+
+# IDE (permitir config recomendada)
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.code-workspace
+
+# Datos/Modelos grandes
+logs_in/exported_data/**
+curated/**
+models/**
+!models/.gitkeep
+
+# Cachés Streamlit
+.streamlit/
+
+# Parquet / temporales
+*.parquet
+*.tmp
+
+# Sistema
+Thumbs.db
+*.DS_Store
