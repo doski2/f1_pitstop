@@ -1,3 +1,5 @@
+"""Curación de CSV → dataset por vuelta y particionado por pista/sesión/piloto."""
+
 from __future__ import annotations
 
 import argparse
@@ -40,7 +42,9 @@ def load_track_raw(track_dir: Path) -> pd.DataFrame:
     if "timestamp" in df.columns:
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
     # Orden básico
-    sort_cols = [c for c in ["timestamp", "currentLap", "turnNumber"] if c in df.columns]
+    sort_cols = [
+        c for c in ["timestamp", "currentLap", "turnNumber"] if c in df.columns
+    ]
     if sort_cols:
         df = df.sort_values(sort_cols).reset_index(drop=True)
     # Eliminar duplicados exactos en claves principales disponibles
@@ -134,7 +138,10 @@ def save_partitioned(laps: pd.DataFrame, base: Path = OUTPUT_BASE) -> None:
         ]
     ):
         out_dir = (
-            base / f"track={track}" / f"session={session}" / f"driver={driver_num}_{first}_{last}"
+            base
+            / f"track={track}"
+            / f"session={session}"
+            / f"driver={driver_num}_{first}_{last}"
         )
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / "laps.parquet"
@@ -189,9 +196,12 @@ def main(track_path: str):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Curación de datos de telemetría por pista")
+    parser = argparse.ArgumentParser(
+        description="Curación de datos de telemetría por pista"
+    )
     parser.add_argument(
-        "track_path", help="Ruta a carpeta de pista (por ejemplo logs_in/exported_data/Bahrain)"
+        "track_path",
+        help="Ruta a carpeta de pista (por ejemplo logs_in/exported_data/Bahrain)",
     )
     args = parser.parse_args()
     main(args.track_path)

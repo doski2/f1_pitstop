@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
 
 from strategy import build_lap_summary, load_session_csv
 
-PRACTICE_SESSION_NAMES = {"Practice 1", "Practice 2", "Practice 3", "Practice", "FP1", "FP2", "FP3"}
+PRACTICE_SESSION_NAMES = {
+    "Practice 1",
+    "Practice 2",
+    "Practice 3",
+    "Practice",
+    "FP1",
+    "FP2",
+    "FP3",
+}
 
 
 def collect_practice_data(data_root: Path, track: str, driver: str) -> pd.DataFrame:
@@ -20,8 +28,9 @@ def collect_practice_data(data_root: Path, track: str, driver: str) -> pd.DataFr
     for session_dir in track_dir.iterdir():
         if not session_dir.is_dir():
             continue
-        if session_dir.name not in PRACTICE_SESSION_NAMES and not session_dir.name.startswith(
-            "Practice"
+        if (
+            session_dir.name not in PRACTICE_SESSION_NAMES
+            and not session_dir.name.startswith("Practice")
         ):
             continue
         # Search within driver subdirs
@@ -64,7 +73,9 @@ def fit_degradation_model(
         dfc = grp[cols].dropna()
         if len(dfc) < 5:
             continue
-        z = (dfc["lap_time_s"] - dfc["lap_time_s"].mean()) / (dfc["lap_time_s"].std(ddof=0) or 1)
+        z = (dfc["lap_time_s"] - dfc["lap_time_s"].mean()) / (
+            dfc["lap_time_s"].std(ddof=0) or 1
+        )
         dfc = dfc[np.abs(z) < 3]
         if len(dfc) < 5:
             continue
@@ -158,7 +169,9 @@ def enumerate_plans(
                 a, b_age = coeffs[0], coeffs[1]
                 stint_time_val = stint_time(a, b_age, laps)
             total += stint_time_val
-            details.append({"compound": comp, "laps": laps, "pred_time": stint_time_val})
+            details.append(
+                {"compound": comp, "laps": laps, "pred_time": stint_time_val}
+            )
         if not feasible:
             return
         total += pit_loss * (len(seq) - 1)
@@ -238,7 +251,9 @@ def live_pit_recommendation(
                     fuel_new = fuel_after - cons_per_lap * new_ages
                     if (fuel_new < 0).any():
                         continue
-                    time_new = float(np.sum(a_new + b_new * new_ages + c_new * fuel_new))
+                    time_new = float(
+                        np.sum(a_new + b_new * new_ages + c_new * fuel_new)
+                    )
                 else:
                     time_new = 0.0
             else:
@@ -262,10 +277,11 @@ def live_pit_recommendation(
         return None
     # explicit selection to avoid mypy comparability complaints
     best_eval = evaluations[0]
-    best_val = float(best_eval["projected_total_remaining"])
+    # Use cast to help mypy know these dict fields are numeric floats
+    best_val = float(cast(float, best_eval["projected_total_remaining"]))
     for ev in evaluations[1:]:
         try:
-            v = float(ev["projected_total_remaining"])
+            v = float(cast(float, ev["projected_total_remaining"]))
         except Exception:
             continue
         if v < best_val:

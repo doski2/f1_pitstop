@@ -1,3 +1,5 @@
+"""CLI para generar modelos de degradación por pista/piloto."""
+
 from __future__ import annotations
 
 import argparse
@@ -11,7 +13,15 @@ import pandas as pd
 from f1m.modeling import collect_practice_data, fit_degradation_model
 from f1m.telemetry import build_lap_summary, load_session_csv
 
-PRACTICE_LIKE = {"Practice 1", "Practice 2", "Practice 3", "Practice", "FP1", "FP2", "FP3"}
+PRACTICE_LIKE = {
+    "Practice 1",
+    "Practice 2",
+    "Practice 3",
+    "Practice",
+    "FP1",
+    "FP2",
+    "FP3",
+}
 
 
 def discover_drivers(track_dir: Path) -> List[str]:
@@ -66,14 +76,19 @@ def save_models(
     meta: dict,
 ):
     serializable = {
-        "metadata": {**meta, "saved_at": datetime.now().isoformat(timespec="seconds")},
+        "metadata": {
+            **meta,
+            "saved_at": datetime.now().isoformat(timespec="seconds"),
+        },
         "models": {comp: list(coeffs) for comp, coeffs in models.items()},
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(serializable, indent=2))
+    out_path.write_text(json.dumps(serializable, indent=2), encoding="utf-8")
 
 
-def build_and_save(data_root: Path, track: str, driver: str, out_dir: Path) -> Path | None:
+def build_and_save(
+    data_root: Path, track: str, driver: str, out_dir: Path
+) -> Path | None:
     data = prepare_driver_data(data_root, track, driver)
     if data.empty:
         print(f"[WARN] Sin datos para {driver} en {track}")
@@ -85,7 +100,9 @@ def build_and_save(data_root: Path, track: str, driver: str, out_dir: Path) -> P
     meta = {
         "track": track,
         "driver": driver,
-        "sessions_included": sorted(data["session"].unique()) if "session" in data.columns else [],
+        "sessions_included": sorted(data["session"].unique())
+        if "session" in data.columns
+        else [],
         "fuel_used": any(len(v) == 3 for v in models.values()),
     }
     out_path = out_dir / track / f"{driver}_model.json"
