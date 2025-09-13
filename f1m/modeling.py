@@ -8,7 +8,15 @@ import pandas as pd
 
 from .telemetry import build_lap_summary, load_session_csv
 
-PRACTICE_SESSION_NAMES = {"Practice 1", "Practice 2", "Practice 3", "Practice", "FP1", "FP2", "FP3"}
+PRACTICE_SESSION_NAMES = {
+    "Practice 1",
+    "Practice 2",
+    "Practice 3",
+    "Practice",
+    "FP1",
+    "FP2",
+    "FP3",
+}
 
 
 def collect_practice_data(data_root: Path, track: str, driver: str) -> pd.DataFrame:
@@ -19,8 +27,9 @@ def collect_practice_data(data_root: Path, track: str, driver: str) -> pd.DataFr
     for session_dir in track_dir.iterdir():
         if not session_dir.is_dir():
             continue
-        if session_dir.name not in PRACTICE_SESSION_NAMES and not session_dir.name.startswith(
-            "Practice"
+        if (
+            session_dir.name not in PRACTICE_SESSION_NAMES
+            and not session_dir.name.startswith("Practice")
         ):
             continue
         for d in session_dir.rglob(driver):
@@ -61,7 +70,9 @@ def fit_degradation_model(
         dfc = grp[cols].dropna()
         if len(dfc) < 5:
             continue
-        z = (dfc["lap_time_s"] - dfc["lap_time_s"].mean()) / (dfc["lap_time_s"].std(ddof=0) or 1)
+        z = (dfc["lap_time_s"] - dfc["lap_time_s"].mean()) / (
+            dfc["lap_time_s"].std(ddof=0) or 1
+        )
         dfc = dfc[np.abs(z) < 3]
         if len(dfc) < 5:
             continue

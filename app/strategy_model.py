@@ -5,7 +5,6 @@ from typing import Dict, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
-
 from strategy import build_lap_summary, load_session_csv
 
 PRACTICE_SESSION_NAMES = {

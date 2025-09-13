@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
 import pandas as pd
-
 from strategy import build_lap_summary, load_session_csv
 from strategy_model import collect_practice_data, fit_degradation_model
 
@@ -15,7 +14,15 @@ from strategy_model import collect_practice_data, fit_degradation_model
 # Utilidades
 # ---------------------------------------------------------------------------
 
-PRACTICE_LIKE = {"Practice 1", "Practice 2", "Practice 3", "Practice", "FP1", "FP2", "FP3"}
+PRACTICE_LIKE = {
+    "Practice 1",
+    "Practice 2",
+    "Practice 3",
+    "Practice",
+    "FP1",
+    "FP2",
+    "FP3",
+}
 
 
 def discover_drivers(track_dir: Path) -> List[str]:
@@ -81,7 +88,9 @@ def save_models(
     out_path.write_text(json.dumps(serializable, indent=2))
 
 
-def build_and_save(data_root: Path, track: str, driver: str, out_dir: Path) -> Path | None:
+def build_and_save(
+    data_root: Path, track: str, driver: str, out_dir: Path
+) -> Path | None:
     data = prepare_driver_data(data_root, track, driver)
     if data.empty:
         print(f"[WARN] Sin datos para {driver} en {track}")
@@ -93,7 +102,9 @@ def build_and_save(data_root: Path, track: str, driver: str, out_dir: Path) -> P
     meta = {
         "track": track,
         "driver": driver,
-        "sessions_included": sorted(data["session"].unique()) if "session" in data.columns else [],
+        "sessions_included": sorted(data["session"].unique())
+        if "session" in data.columns
+        else [],
         "fuel_used": any(len(v) == 3 for v in models.values()),
     }
     out_path = out_dir / track / f"{driver}_model.json"

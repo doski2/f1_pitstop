@@ -64,7 +64,9 @@ def enumerate_plans(
                 a, b_age = coeffs[0], coeffs[1]
                 stint_time_val = stint_time(a, b_age, laps)
             total += stint_time_val
-            details.append({"compound": comp, "laps": laps, "pred_time": stint_time_val})
+            details.append(
+                {"compound": comp, "laps": laps, "pred_time": stint_time_val}
+            )
         total += pit_loss * (len(seq) - 1)
         plans.append({"stints": details, "total_time": total, "stops": len(seq) - 1})
 
@@ -142,7 +144,9 @@ def live_pit_recommendation(
                     fuel_new = fuel_after - cons_per_lap * new_ages
                     if (fuel_new < 0).any():
                         continue
-                    time_new = float(np.sum(a_new + b_new * new_ages + c_new * fuel_new))
+                    time_new = float(
+                        np.sum(a_new + b_new * new_ages + c_new * fuel_new)
+                    )
                 else:
                     time_new = 0.0
             else:
@@ -165,7 +169,11 @@ def live_pit_recommendation(
     if not evaluations:
         return None
     best = evaluations[0]
-    best_val = float(best["projected_total_remaining"]) if isinstance(best.get("projected_total_remaining"), (int, float)) else float(best["projected_total_remaining"])
+    best_val = (
+        float(best["projected_total_remaining"])
+        if isinstance(best.get("projected_total_remaining"), (int, float))
+        else float(best["projected_total_remaining"])
+    )
     for ev in evaluations[1:]:
         try:
             v = float(ev["projected_total_remaining"])

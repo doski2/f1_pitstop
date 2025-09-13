@@ -114,8 +114,10 @@ def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
     comp_change: pd.Series
     if isinstance(comp, pd.Series) and isinstance(comp_prev, pd.Series):
         comp_change = (
-            comp.astype(str).ne(comp_prev.astype(str)) & (tire_age <= 1)
-        ).fillna(False).astype(bool)
+            (comp.astype(str).ne(comp_prev.astype(str)) & (tire_age <= 1))
+            .fillna(False)
+            .astype(bool)
+        )
     else:
         comp_change = pd.Series([False] * len(df.index), index=df.index, dtype=bool)
 
@@ -193,7 +195,9 @@ def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
     return lap_last[existing].reset_index(drop=True)
 
 
-def _aggregate_stint(stint_rows: pd.DataFrame, stint_number: int, compound: str) -> Stint:
+def _aggregate_stint(
+    stint_rows: pd.DataFrame, stint_number: int, compound: str
+) -> Stint:
     """Aggregate metrics for a contiguous block of laps belonging to a single stint."""
 
     metrics = {
@@ -201,21 +205,21 @@ def _aggregate_stint(stint_rows: pd.DataFrame, stint_number: int, compound: str)
         "avg_track_temp": stint_rows.get(
             SESSION_COL_MAP["track_temp"], pd.Series(dtype=float)
         ).mean(skipna=True),
-        "avg_air_temp": stint_rows.get(SESSION_COL_MAP["air_temp"], pd.Series(dtype=float)).mean(
-            skipna=True
-        ),
-        "avg_fl_temp": stint_rows.get(SESSION_COL_MAP["fl_temp"], pd.Series(dtype=float)).mean(
-            skipna=True
-        ),
-        "avg_fr_temp": stint_rows.get(SESSION_COL_MAP["fr_temp"], pd.Series(dtype=float)).mean(
-            skipna=True
-        ),
-        "avg_rl_temp": stint_rows.get(SESSION_COL_MAP["rl_temp"], pd.Series(dtype=float)).mean(
-            skipna=True
-        ),
-        "avg_rr_temp": stint_rows.get(SESSION_COL_MAP["rr_temp"], pd.Series(dtype=float)).mean(
-            skipna=True
-        ),
+        "avg_air_temp": stint_rows.get(
+            SESSION_COL_MAP["air_temp"], pd.Series(dtype=float)
+        ).mean(skipna=True),
+        "avg_fl_temp": stint_rows.get(
+            SESSION_COL_MAP["fl_temp"], pd.Series(dtype=float)
+        ).mean(skipna=True),
+        "avg_fr_temp": stint_rows.get(
+            SESSION_COL_MAP["fr_temp"], pd.Series(dtype=float)
+        ).mean(skipna=True),
+        "avg_rl_temp": stint_rows.get(
+            SESSION_COL_MAP["rl_temp"], pd.Series(dtype=float)
+        ).mean(skipna=True),
+        "avg_rr_temp": stint_rows.get(
+            SESSION_COL_MAP["rr_temp"], pd.Series(dtype=float)
+        ).mean(skipna=True),
     }
 
     return Stint(
@@ -245,7 +249,11 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
     change_mask = (
         ordered.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str))
         .astype(str)
-        .ne(ordered.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str)).shift(1).astype(str))
+        .ne(
+            ordered.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str))
+            .shift(1)
+            .astype(str)
+        )
     )
     tire_age = ordered.get(SESSION_COL_MAP["tire_age"])
     if tire_age is not None:
@@ -261,7 +269,11 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
         if rows.empty:
             continue
         compound = (
-            str(rows.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str)).dropna().iloc[0])
+            str(
+                rows.get(SESSION_COL_MAP["compound"], pd.Series(dtype=str))
+                .dropna()
+                .iloc[0]
+            )
             if SESSION_COL_MAP["compound"] in rows.columns
             else "unknown"
         )
@@ -270,7 +282,9 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
     return stints
 
 
-def fia_compliance_check(stints: List[Stint], weather_series: Optional[pd.Series]) -> Dict[str, object]:
+def fia_compliance_check(
+    stints: List[Stint], weather_series: Optional[pd.Series]
+) -> Dict[str, object]:
     """Simplified FIA compliance heuristics.
 
     - checks compound diversity in dry conditions
@@ -292,7 +306,9 @@ def fia_compliance_check(stints: List[Stint], weather_series: Optional[pd.Series
 
     compounds = {s.compound for s in stints}
     total_laps = sum(s.total_laps for s in stints)
-    weather_text = " ".join(weather_series.dropna().unique()) if weather_series is not None else ""
+    weather_text = (
+        " ".join(weather_series.dropna().unique()) if weather_series is not None else ""
+    )
     is_dry = "Rain" not in weather_text and "Wet" not in weather_text
 
     if is_dry and len(compounds) < 2 and total_laps >= 10:

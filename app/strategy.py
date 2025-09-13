@@ -92,7 +92,9 @@ def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
     if isinstance(comp, pd.Series) and comp_prev is not None:
         comp_str = comp.astype(str)
         comp_prev_str = comp_prev.astype(str)
-        comp_change = (comp_str.ne(comp_prev_str) & (tire_age <= 1)).fillna(False).astype(bool)
+        comp_change = (
+            (comp_str.ne(comp_prev_str) & (tire_age <= 1)).fillna(False).astype(bool)
+        )
     else:
         # default to all-False boolean Series
         comp_change = pd.Series(False, index=df.index, dtype=bool)
@@ -192,10 +194,13 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
             stint_start_lap = lap
             stint_number = 1
         # If pit stop occurred (detected on the OUT lap) start new stint
-        elif is_pit or (is_reset_age and stint_start_lap is not None and lap > stint_start_lap):
+        elif is_pit or (
+            is_reset_age and stint_start_lap is not None and lap > stint_start_lap
+        ):
             # Close previous
             prev = lap_summary[
-                (lap_summary["currentLap"] >= stint_start_lap) & (lap_summary["currentLap"] < lap)
+                (lap_summary["currentLap"] >= stint_start_lap)
+                & (lap_summary["currentLap"] < lap)
             ]
             if not prev.empty:
                 stints.append(_aggregate_stint(prev, stint_number, current_compound))
@@ -206,31 +211,35 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
     if stint_start_lap is not None:
         last_stint_rows = lap_summary[lap_summary["currentLap"] >= stint_start_lap]
         if not last_stint_rows.empty and current_compound is not None:
-            stints.append(_aggregate_stint(last_stint_rows, stint_number, current_compound))
+            stints.append(
+                _aggregate_stint(last_stint_rows, stint_number, current_compound)
+            )
     return stints
 
 
-def _aggregate_stint(stint_rows: pd.DataFrame, stint_number: int, compound: str) -> Stint:
+def _aggregate_stint(
+    stint_rows: pd.DataFrame, stint_number: int, compound: str
+) -> Stint:
     metrics = {
         "avg_lap_time": stint_rows["lap_time_s"].mean(skipna=True),
         "avg_track_temp": stint_rows.get(
             SESSION_COL_MAP["track_temp"], pd.Series(dtype=float)
         ).mean(skipna=True),
-        "avg_air_temp": stint_rows.get(SESSION_COL_MAP["air_temp"], pd.Series(dtype=float)).mean(
-            skipna=True
-        ),
-        "avg_fl_temp": stint_rows.get(SESSION_COL_MAP["fl_temp"], pd.Series(dtype=float)).mean(
-            skipna=True
-        ),
-        "avg_fr_temp": stint_rows.get(SESSION_COL_MAP["fr_temp"], pd.Series(dtype=float)).mean(
-            skipna=True
-        ),
-        "avg_rl_temp": stint_rows.get(SESSION_COL_MAP["rl_temp"], pd.Series(dtype=float)).mean(
-            skipna=True
-        ),
-        "avg_rr_temp": stint_rows.get(SESSION_COL_MAP["rr_temp"], pd.Series(dtype=float)).mean(
-            skipna=True
-        ),
+        "avg_air_temp": stint_rows.get(
+            SESSION_COL_MAP["air_temp"], pd.Series(dtype=float)
+        ).mean(skipna=True),
+        "avg_fl_temp": stint_rows.get(
+            SESSION_COL_MAP["fl_temp"], pd.Series(dtype=float)
+        ).mean(skipna=True),
+        "avg_fr_temp": stint_rows.get(
+            SESSION_COL_MAP["fr_temp"], pd.Series(dtype=float)
+        ).mean(skipna=True),
+        "avg_rl_temp": stint_rows.get(
+            SESSION_COL_MAP["rl_temp"], pd.Series(dtype=float)
+        ).mean(skipna=True),
+        "avg_rr_temp": stint_rows.get(
+            SESSION_COL_MAP["rr_temp"], pd.Series(dtype=float)
+        ).mean(skipna=True),
     }
     return Stint(
         stint_number=stint_number,
@@ -242,7 +251,9 @@ def _aggregate_stint(stint_rows: pd.DataFrame, stint_number: int, compound: str)
     )
 
 
-def fia_compliance_check(stints: List[Stint], weather_series: Optional[pd.Series]) -> dict:
+def fia_compliance_check(
+    stints: List[Stint], weather_series: Optional[pd.Series]
+) -> dict:
     """Basic FIA-esque rule checks relevant to tyre usage.
 
     Simplified rules implemented:
@@ -262,7 +273,9 @@ def fia_compliance_check(stints: List[Stint], weather_series: Optional[pd.Series
         return result
     compounds = {s.compound for s in stints}
     total_laps = sum(s.total_laps for s in stints)
-    weather_text = " ".join(weather_series.dropna().unique()) if weather_series is not None else ""
+    weather_text = (
+        " ".join(weather_series.dropna().unique()) if weather_series is not None else ""
+    )
     is_dry = "Rain" not in weather_text and "Wet" not in weather_text
     if is_dry and len(compounds) < 2 and total_laps >= 10:
         result["used_two_compounds"] = False
@@ -270,7 +283,9 @@ def fia_compliance_check(stints: List[Stint], weather_series: Optional[pd.Series
     max_allowed = int(total_laps * 0.7)
     if any(s.total_laps > max_allowed for s in stints) and total_laps >= 15:
         result["max_stint_ok"] = False
-        notes.append("Un stint supera el 70% de la distancia total (bandera heurística).")
+        notes.append(
+            "Un stint supera el 70% de la distancia total (bandera heurística)."
+        )
     if len(stints) < 2 and total_laps > 20:
         result["pit_stop_required"] = False
         notes.append("Carrera larga con una sola parada / sin paradas.")
