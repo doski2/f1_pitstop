@@ -1,4 +1,5 @@
 # f1m package: utilidades de telemetría, modelado y planificación
+
 from .modeling import (
     collect_practice_data,
     fit_degradation_model,
@@ -15,4 +16,5 @@ from .telemetry import (
     load_session_csv,
 )
 
-# f1m package: utilidades de telemetría, modelado y planificación
+# Hace que 'f1m' sea un paquete estándar para importaciones fiables.
+__all__: list[str] = []

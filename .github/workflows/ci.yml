@@ -42,3 +42,4 @@ jobs:
         run: |
           pip install pytest
           pytest -q
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
