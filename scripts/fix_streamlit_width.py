@@ -1,3 +1,5 @@
+﻿
+
 from __future__ import annotations
 
 import argparse
@@ -24,17 +26,17 @@ def transform_line(line: str) -> tuple[str, list[str]]:
         return line, notes
     # Evita colisiones si ya hay 'width=' en la misma llamada
     if "width=" in line:
-        notes.append("detectado width= en la misma línea; revisar manualmente")
+        notes.append("detectado width= en la misma lÃ­nea; revisar manualmente")
         return line, notes
     new_line = PAT_TRUE.sub("width='stretch'", line)
     new_line = PAT_FALSE.sub("width='content'", new_line)
-    # Si quedó 'use_container_width' sin True/False explícito, avisar
+    # Si quedÃ³ 'use_container_width' sin True/False explÃ­cito, avisar
     if "use_container_width" in new_line:
-        notes.append("uso no estándar de use_container_width; revisar manualmente")
+        notes.append("uso no estÃ¡ndar de use_container_width; revisar manualmente")
     return new_line, notes
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Migrar use_container_width → width ('stretch'|'content')")
+    ap = argparse.ArgumentParser(description="Migrar use_container_width â†’ width ('stretch'|'content')")
     ap.add_argument("--apply", action="store_true", help="Escribir cambios en disco (por defecto solo vista previa)")
     args = ap.parse_args()
 
@@ -70,14 +72,17 @@ def main() -> int:
                 manual.append((path, ln, src, notes))
 
     if manual:
-        print("\n[AVISOS] Revisar manualmente estas líneas:")
+        print("\n[AVISOS] Revisar manualmente estas lÃ­neas:")
         for p, ln, src, notes in manual:
             print(f" - {p}:{ln}: {src}")
             for n in notes:
-                print(f"     • {n}")
+                print(f"     â€¢ {n}")
 
     print(f"\nHecho. Archivos modificados: {changed}. {'(vista previa)' if not args.apply else ''}")
     return 0
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+

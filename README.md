@@ -40,8 +40,23 @@ python -m venv .venv
 source .venv/bin/activate  # Windows: .\.venv\Scripts\Activate.ps1
 pip install -U pip
 pip install -r requirements.txt
-streamlit run dashboard.py
 ```
+
+## Cómo ejecutar el dashboard
+### Opción recomendada (abre 1 sola pestaña)
+```powershell
+.\scripts\run_dashboard.ps1
+```
+> Usa modo headless (Streamlit no abre navegador) y abre **1** pestaña cuando el servidor está listo.
+
+### Alternativa
+```bash
+streamlit run app/dashboard.py --server.headless true --server.port 8501
+```
+Luego abre manualmente: http://localhost:8501
+
+### Nota sobre “se abren 2 ventanas”
+Si veías 2, era porque Streamlit abría una y tu script otra. Con `.streamlit/config.toml` (`headless=true`) queda resuelto.
 
 ## 4) Modelos precomputados
 Formato JSON:
