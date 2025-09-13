@@ -39,6 +39,10 @@ models/**
 # Cachés Streamlit
 .streamlit/
 
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+
 # Parquet / temporales
 *.parquet
 *.tmp
