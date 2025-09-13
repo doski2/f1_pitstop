@@ -3,7 +3,8 @@
   "python.defaultInterpreterPath": ".venv/Scripts/python.exe",
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
-    "source.organizeImports": "explicit"
+    "source.fixAll": "always",
+    "source.organizeImports": "always"
   },
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
@@ -13,5 +14,7 @@
   "ruff.enable": true,
   "ruff.format.enable": true,
   "python.formatting.provider": "none",
-  "gitlens.currentLine.enabled": false
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  }
 }

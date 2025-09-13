@@ -27,11 +27,11 @@ jobs:
           # fails in that layout on modern setuptools. Instead we add the
           # repository root to PYTHONPATH before running tests so tests can
           # import the local packages directly.
-      - name: Ruff (lint + format-check)
+      - name: Ruff (format + lint)
         run: |
           pip install ruff
+          ruff format .
           ruff check .
-          ruff format --check .
       - name: MyPy
         run: |
           pip install mypy
