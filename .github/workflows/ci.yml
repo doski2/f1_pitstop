@@ -21,8 +21,12 @@ jobs:
         run: |
           python -m pip install -U pip
           pip install -r requirements.txt
-          # Install the package itself so tests can import the local package (f1m)
-          pip install -e .
+          # Note: don't build an editable wheel for this repository because
+          # the project uses a flat layout with multiple top-level packages
+          # (app, f1m, adapters). Building editable installs with setuptools
+          # fails in that layout on modern setuptools. Instead we add the
+          # repository root to PYTHONPATH before running tests so tests can
+          # import the local packages directly.
       - name: Ruff (lint + format-check)
         run: |
           pip install ruff
@@ -32,7 +36,9 @@ jobs:
         run: |
           pip install mypy
           mypy .
-      - name: Pytest
+      - name: Run tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           pip install pytest
           pytest -q
