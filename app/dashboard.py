@@ -253,12 +253,12 @@ st.subheader("Resumen de Vueltas")
 if lap_summary.empty:
     st.info("Sin datos de vueltas.")
 else:
-    st.dataframe(lap_summary, use_container_width=True, height=300)
+    st.dataframe(lap_summary, width='stretch', height=300)
 
 st.subheader("Stints")
 if stints:
     stint_df = pd.DataFrame([s.__dict__ for s in stints])
-    st.dataframe(stint_df, use_container_width=True)
+    st.dataframe(stint_df, width='stretch')
 else:
     st.info("No se detectaron stints")
 
@@ -340,7 +340,7 @@ with tab_lap:
                     name="Pit Stop",
                 )
             )
-        st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
     else:
         st.info("No hay datos de tiempos de vuelta.")
 
@@ -362,7 +362,7 @@ with tab_ttemps:
             hover_data=["currentLap"],
             title="Temperaturas de Neumáticos",
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width='stretch')
     else:
         st.info("No hay columnas de temperatura de rueda.")
 
@@ -381,7 +381,7 @@ with tab_trackair:
             xaxis_title="Tiempo",
             yaxis_title="°C (según juego)",
         )
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, width='stretch')
     else:
         st.info("No hay datos de temperatura de pista/aire.")
 
@@ -396,7 +396,7 @@ with tab_evol:
             labels={"currentLap": "Vuelta", "tire_age": "Edad Neumático (vueltas)"},
             title="Evolución Edad Neumático / Compuesto",
         )
-        st.plotly_chart(fig4, use_container_width=True)
+        st.plotly_chart(fig4, width='stretch')
     else:
         st.info("Sin datos para mostrar evolución de compuesto.")
 
@@ -544,7 +544,7 @@ with tab_strategy:
                             "c_fuel": None,
                         }
                     )
-            st.dataframe(pd.DataFrame(model_rows), use_container_width=True)
+            st.dataframe(pd.DataFrame(model_rows), width='stretch')
             col_sv1, col_sv2 = st.columns([1, 3])
             if col_sv1.button("Guardar modelo"):
                 sessions_used = (
@@ -642,7 +642,7 @@ with tab_strategy:
                                     "Tiempo Est. (s)": round(s["pred_time"], 2),
                                 }
                             )
-                        st.dataframe(pd.DataFrame(stint_rows), use_container_width=True)
+                        st.dataframe(pd.DataFrame(stint_rows), width='stretch')
             if is_race and not lap_summary.empty:
                 st.markdown("---")
                 st.subheader("Recomendación en Vivo")
@@ -700,14 +700,14 @@ with tab_wear:
                 title="Desgaste Neumáticos (%)",
                 markers=True,
             )
-            st.plotly_chart(figw, use_container_width=True)
+            st.plotly_chart(figw, width='stretch')
             # Resumen por vuelta (última muestra de cada vuelta)
             if not lap_summary.empty:
                 last_per_lap = df.sort_values("timestamp").groupby("currentLap").tail(1)
                 cols_present = [c for c in wear_cols if c in last_per_lap.columns]
                 st.dataframe(
                     last_per_lap[["currentLap"] + cols_present],
-                    use_container_width=True,
+                    width='stretch',
                     height=300,
                 )
         else:
