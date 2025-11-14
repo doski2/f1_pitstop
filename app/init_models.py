@@ -7,8 +7,18 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
 import pandas as pd
-from strategy import build_lap_summary, load_session_csv
-from strategy_model import collect_practice_data, fit_degradation_model
+
+from f1m.common import collect_practice_data
+from f1m.modeling import fit_degradation_model
+from f1m.telemetry import (
+    DIR_EXPORTED_DATA,
+    DIR_LOGS_IN,
+    build_lap_summary,
+    load_session_csv,
+)
+
+# Directory path constants
+DEFAULT_DATA_ROOT = f"{DIR_LOGS_IN}/{DIR_EXPORTED_DATA}"
 
 # ---------------------------------------------------------------------------
 # Utilidades
@@ -56,7 +66,14 @@ def fallback_race_sample(
                     lap_sum = lap_sum.nsmallest(max_laps, "currentLap")
                     lap_sum["session"] = "RaceSample"
                     frames.append(lap_sum)
-                except Exception:  # noqa
+                except (
+                    FileNotFoundError,
+                    PermissionError,
+                    pd.errors.EmptyDataError,
+                    pd.errors.ParserError,
+                    KeyError,
+                    ValueError,
+                ):
                     continue
     if frames:
         return pd.concat(frames, ignore_index=True)
@@ -118,7 +135,7 @@ def main():
         description="Generar modelos iniciales de degradación por pista y piloto"
     )
     parser.add_argument(
-        "--data-root", default="logs_in/exported_data", help="Raíz de datos exportados"
+        "--data-root", default=DEFAULT_DATA_ROOT, help="Raíz de datos exportados"
     )
     parser.add_argument("--track", required=True, help="Nombre de circuito (folder)")
     parser.add_argument("--driver", help="Piloto específico; si se omite procesa todos")

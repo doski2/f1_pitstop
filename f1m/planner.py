@@ -6,84 +6,198 @@ Incluye chequeos de viabilidad por combustible cuando hay modelo con fuel.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple, Union
+from functools import lru_cache
 
-import numpy as np
-import pandas as pd
-
-from .modeling import max_stint_length, stint_time
+from .imports import (
+    DEFAULT_CONS_PER_LAP,
+    DEFAULT_MAX_STOPS,
+    DEFAULT_MIN_STINT,
+    DEFAULT_START_FUEL,
+    DEFAULT_TOP_K_PLANS,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Union,
+    np,
+    pd,
+)
+from .modeling import adjust_lap_time_for_conditions, max_stint_length, stint_time
 
 
 def enumerate_plans(
     race_laps: int,
     compounds: List[str],
-    models: Dict[str, Union[Tuple[float, float], Tuple[float, float, float]]],
+    models: Mapping[str, Union[Tuple[float, float], Tuple[float, float, float]]],
     practice_laps: pd.DataFrame,
     pit_loss: float,
-    max_stops: int = 2,
-    min_stint: int = 5,
+    max_stops: int = DEFAULT_MAX_STOPS,
+    min_stint: int = DEFAULT_MIN_STINT,
     require_two_compounds: bool = True,
-    top_k: int = 3,
+    top_k: int = DEFAULT_TOP_K_PLANS,
     use_fuel: bool = False,
-    start_fuel: float = 0.0,
-    cons_per_lap: float = 0.0,
+    start_fuel: float = DEFAULT_START_FUEL,
+    cons_per_lap: float = DEFAULT_CONS_PER_LAP,
+    safety_car_percentage: float = 0.0,
+    rain_percentage: float = 0.0,
 ) -> List[dict]:
     """Devuelve los `top_k` mejores planes por tiempo total estimado.
 
     The plan is a list of (compound, laps) stints whose laps sum to ``race_laps``.
     This function validates fuel feasibility when ``use_fuel`` is enabled and uses
     ``stint_time`` to compute expected stint durations.
+
+    Optimized with memoization to avoid exponential recursion.
     """
 
     plans: List[dict] = []
     max_len = {c: max_stint_length(practice_laps, c) for c in compounds}
 
-    def add_plan(seq: List[Tuple[str, int]]):
-        # total laps must match
-        if sum(laps for _, laps in seq) != race_laps:
-            return
-        if require_two_compounds and len({c for c, _ in seq}) < 2 and race_laps > 15:
-            return
-        total = 0.0
-        details: List[dict] = []
-        fuel_cursor = start_fuel
-        for comp, laps in seq:
-            if comp not in models:
-                return
+    @lru_cache(maxsize=None)
+    def compute_stint_time(
+        comp: str, laps: int, fuel_cursor: float
+    ) -> Tuple[float, float]:
+        """Compute stint time and updated fuel. Memoized for performance."""
+        if comp not in models:
+            return float("inf"), fuel_cursor
+        coeffs = models[comp]
+        if use_fuel and len(coeffs) == 3:
+            a, b_age, c_fuel = coeffs
+            ages = np.arange(0, laps)
+            fuel_series = fuel_cursor - cons_per_lap * ages
+            if (fuel_series < 0).any():
+                return float("inf"), fuel_cursor
+            stint_time_val = float(np.sum(a + b_age * ages + c_fuel * fuel_series))
+            new_fuel = fuel_cursor - cons_per_lap * laps
+        else:
+            a, b_age = coeffs[0], coeffs[1]
+            stint_time_val = stint_time(a, b_age, laps)
+            new_fuel = fuel_cursor - cons_per_lap * laps
+
+        # Apply adjustments for Safety Car and rain conditions
+        # Assume conditions apply to a percentage of laps in the stint
+        safety_car_laps = int(laps * safety_car_percentage)
+        rain_laps = int(laps * rain_percentage)
+        normal_laps = laps - safety_car_laps - rain_laps
+
+        # Calculate adjusted time
+        adjusted_time = (
+            normal_laps * (stint_time_val / laps)
+            + safety_car_laps
+            * adjust_lap_time_for_conditions(stint_time_val / laps, safety_car=True)
+            + rain_laps
+            * adjust_lap_time_for_conditions(stint_time_val / laps, rain=True)
+        )
+
+        return adjusted_time, new_fuel
+
+    def generate_plans_dp(
+        remaining: int,
+        stops_used: int,
+        last_comp: str,
+        fuel_level: float,
+        compounds_used: frozenset,
+    ) -> List[Tuple[List[Tuple[str, int]], float, float]]:
+        """Generate all valid plans for remaining laps using DP with memoization."""
+        # Cache key: (remaining, stops_used, last_comp, fuel_level_rounded, compounds_used)
+        fuel_key = round(fuel_level, 1)  # Round fuel to 0.1 precision for caching
+        cache_key = (remaining, stops_used, last_comp, fuel_key, compounds_used)
+
+        if cache_key in _plan_cache:
+            return _plan_cache[cache_key]
+
+        if remaining == 0:
+            # Valid plan found
+            result: List[Tuple[List[Tuple[str, int]], float, float]] = [([], 0.0, fuel_level)]
+            _plan_cache[cache_key] = result
+            return result
+
+        if stops_used > max_stops:
+            _plan_cache[cache_key] = []
+            return []
+
+        results = []
+
+        for comp in compounds:
+            if comp == last_comp and stops_used > 0:
+                # Avoid consecutive same compound unless it's the first stint
+                continue
+
+            max_l = min(max_len.get(comp, remaining), remaining)
+            min_laps = min_stint if remaining > min_stint else remaining
+
+            for laps in range(min_laps, max_l + 1):
+                if remaining - laps > 0 and remaining - laps < min_stint:
+                    continue
+
+                stint_time_val, new_fuel = compute_stint_time(comp, laps, fuel_level)
+                if stint_time_val == float("inf"):
+                    continue  # Fuel constraint violated
+
+                new_compounds_used = compounds_used | {comp}
+
+                # Recursive call for remaining laps
+                sub_plans = generate_plans_dp(
+                    remaining - laps,
+                    stops_used + (1 if stops_used > 0 or last_comp != "" else 0),
+                    comp,
+                    new_fuel,
+                    new_compounds_used,
+                )
+
+                for sub_stints, sub_time, final_fuel in sub_plans:
+                    total_time = stint_time_val + sub_time
+                    new_stints = [(comp, laps)] + sub_stints
+                    results.append((new_stints, total_time, final_fuel))
+
+        # Keep only top results to limit memory usage
+        results.sort(key=lambda x: x[1])  # Sort by total time
+        results = results[: top_k * 2]  # Keep more than needed for combination
+
+        _plan_cache[cache_key] = results
+        return results
+
+    # Global cache for this function call
+    _plan_cache: Dict[Tuple[int, int, str, float, frozenset], List] = {}
+
+    # Generate all plans starting with empty state
+    all_plans = generate_plans_dp(race_laps, 0, "", start_fuel, frozenset())
+
+    # Convert to the expected format
+    for stints, total_time, final_fuel in all_plans:
+        if not stints:
+            continue
+
+        # Check two-compound requirement
+        if (
+            require_two_compounds
+            and len(set(c for c, _ in stints)) < 2
+            and race_laps > 15
+        ):
+            continue
+
+        # Add pit stop losses
+        stops = len(stints) - 1
+        total_time_with_pits = total_time + pit_loss * stops
+
+        details = []
+        for comp, laps in stints:
             coeffs = models[comp]
-            # fuel-aware model: (a, b_age, c_fuel)
             if use_fuel and len(coeffs) == 3:
                 a, b_age, c_fuel = coeffs
                 ages = np.arange(0, laps)
-                fuel_series = fuel_cursor - cons_per_lap * ages
-                if (fuel_series < 0).any():
-                    return
-                stint_time_val = float(np.sum(a + b_age * ages + c_fuel * fuel_series))
-                fuel_cursor -= cons_per_lap * laps
+                fuel_series = start_fuel - cons_per_lap * ages
+                pred_time = float(np.sum(a + b_age * ages + c_fuel * fuel_series))
             else:
                 a, b_age = coeffs[0], coeffs[1]
-                stint_time_val = stint_time(a, b_age, laps)
-            total += stint_time_val
-            details.append(
-                {"compound": comp, "laps": laps, "pred_time": stint_time_val}
-            )
-        total += pit_loss * (len(seq) - 1)
-        plans.append({"stints": details, "total_time": total, "stops": len(seq) - 1})
+                pred_time = stint_time(a, b_age, laps)
+            details.append({"compound": comp, "laps": laps, "pred_time": pred_time})
 
-    def recurse(remaining: int, current: List[Tuple[str, int]], depth: int):
-        if remaining == 0:
-            add_plan(current)
-            return
-        if depth > max_stops:
-            return
-        for comp in compounds:
-            max_l = min(max_len.get(comp, remaining), remaining)
-            for laps in range(min_stint, max_l + 1):
-                if remaining - laps != 0 and remaining - laps < min_stint:
-                    continue
-                recurse(remaining - laps, current + [(comp, laps)], depth + 1)
+        plans.append(
+            {"stints": details, "total_time": total_time_with_pits, "stops": stops}
+        )
 
-    recurse(race_laps, [], 0)
     plans.sort(key=lambda x: x["total_time"])
     return plans[:top_k]
 
@@ -177,7 +291,7 @@ def live_pit_recommendation(
     for ev in evaluations[1:]:
         try:
             v = float(ev["projected_total_remaining"])
-        except Exception:
+        except (ValueError, TypeError):
             continue
         if v < best_val:
             best_val = v

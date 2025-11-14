@@ -1,45 +1,46 @@
-﻿name: CI
+name: CI
 
 on:
-  push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    push:
+        branches: ["master"]
+    pull_request:
+        branches: ["master"]
 permissions:
-  contents: read
+    contents: read
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
-      - name: Install deps
-        run: |
-          python -m pip install -U pip
-          pip install -r requirements.txt
-          # Note: don't build an editable wheel for this repository because
-          # the project uses a flat layout with multiple top-level packages
-          # (app, f1m, adapters). Building editable installs with setuptools
-          # fails in that layout on modern setuptools. Instead we add the
-          # repository root to PYTHONPATH before running tests so tests can
-          # import the local packages directly.
-      - name: Ruff (format + lint)
-        run: |
-          pip install ruff
-          ruff format .
-          ruff check .
-      - name: MyPy
-        run: |
-          pip install mypy
-          mypy .
-      - name: Run tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          pip install pytest
-          pytest -q
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+                  cache: "pip"
+                  cache-dependency-path: requirements.txt
+            - name: Install deps
+              run: |
+                  python -m pip install -U pip
+                  pip install -r requirements.txt
+                  # Note: don't build an editable wheel for this repository because
+                  # the project uses a flat layout with multiple top-level packages
+                  # (app, f1m, adapters). Building editable installs with setuptools
+                  # fails in that layout on modern setuptools. Instead we add the
+                  # repository root to PYTHONPATH before running tests so tests can
+                  # import the local packages directly.
+            - name: Ruff (format + lint)
+              run: |
+                  pip install ruff
+                  ruff format .
+                  ruff check .
+            - name: MyPy
+              run: |
+                  pip install mypy
+                  mypy .
+            - name: Run tests
+              env:
+                  PYTHONPATH: ${{ github.workspace }}
+              run: |
+                  pip install pytest
+                  pytest -q
+
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json

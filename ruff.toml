@@ -20,3 +20,5 @@ force-single-line = false
 [lint.per-file-ignores]
 # Allow broader imports in __init__ if needed
 "__init__.py" = ["F401"]
+# Allow unused imports in test files (pytest framework)
+"tests/*.py" = ["F401"]

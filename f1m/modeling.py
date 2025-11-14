@@ -1,52 +1,16 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Dict, Tuple, Union
-
-import numpy as np
-import pandas as pd
-
-from .telemetry import build_lap_summary, load_session_csv
-
-PRACTICE_SESSION_NAMES = {
-    "Practice 1",
-    "Practice 2",
-    "Practice 3",
-    "Practice",
-    "FP1",
-    "FP2",
-    "FP3",
-}
-
-
-def collect_practice_data(data_root: Path, track: str, driver: str) -> pd.DataFrame:
-    track_dir = data_root / track
-    frames = []
-    if not track_dir.exists():
-        return pd.DataFrame()
-    for session_dir in track_dir.iterdir():
-        if not session_dir.is_dir():
-            continue
-        if (
-            session_dir.name not in PRACTICE_SESSION_NAMES
-            and not session_dir.name.startswith("Practice")
-        ):
-            continue
-        for d in session_dir.rglob(driver):
-            if d.is_dir():
-                for csv in d.glob("*.csv"):
-                    try:
-                        df = load_session_csv(csv)
-                        lap_sum = build_lap_summary(df)
-                        lap_sum["session"] = session_dir.name
-                        frames.append(lap_sum)
-                    except Exception:
-                        continue
-    if frames:
-        out = pd.concat(frames, ignore_index=True)
-        out = out[(out["lap_time_s"].notna()) & (out["lap_time_s"] > 0)]
-        return out
-    return pd.DataFrame()
+from .imports import (
+    COL_RAIN,
+    COL_SAFETY_CAR,
+    RAIN_TIME_MULTIPLIER,
+    SAFETY_CAR_TIME_MULTIPLIER,
+    Dict,
+    Tuple,
+    Union,
+    np,
+    pd,
+)
 
 
 def fit_degradation_model(
@@ -64,10 +28,22 @@ def fit_degradation_model(
         comp = str(comp_raw)
         if grp["tire_age"].nunique() < 2 or len(grp) < 5:
             continue
+
+        # Filter out laps with Safety Car or rain conditions
+        filtered_grp = grp.copy()
+        if COL_SAFETY_CAR in grp.columns:
+            filtered_grp = filtered_grp[~filtered_grp[COL_SAFETY_CAR].fillna(False)]
+        if COL_RAIN in grp.columns:
+            filtered_grp = filtered_grp[~filtered_grp[COL_RAIN].fillna(False)]
+
+        # If we don't have enough data after filtering, skip this compound
+        if len(filtered_grp) < 5 or filtered_grp["tire_age"].nunique() < 2:
+            continue
+
         cols = ["tire_age", "lap_time_s"] + (
-            ["fuel"] if fuel_available and "fuel" in grp.columns else []
+            ["fuel"] if fuel_available and "fuel" in filtered_grp.columns else []
         )
-        dfc = grp[cols].dropna()
+        dfc = filtered_grp[cols].dropna()
         if len(dfc) < 5:
             continue
         z = (dfc["lap_time_s"] - dfc["lap_time_s"].mean()) / (
@@ -96,6 +72,29 @@ def stint_time(intercept: float, slope: float, laps: int) -> float:
     if laps <= 0:
         return 0.0
     return laps * intercept + slope * (laps - 1) * laps / 2.0
+
+
+def adjust_lap_time_for_conditions(
+    base_lap_time: float, safety_car: bool = False, rain: bool = False
+) -> float:
+    """Adjust lap time based on Safety Car or rain conditions.
+
+    Args:
+        base_lap_time: Base lap time from degradation model
+        safety_car: Whether Safety Car is deployed
+        rain: Whether it's raining
+
+    Returns:
+        Adjusted lap time considering conditions
+    """
+    multiplier = 1.0
+
+    if safety_car:
+        multiplier *= SAFETY_CAR_TIME_MULTIPLIER
+    if rain:
+        multiplier *= RAIN_TIME_MULTIPLIER
+
+    return base_lap_time * multiplier
 
 
 def max_stint_length(practice_laps: pd.DataFrame, compound: str) -> int:

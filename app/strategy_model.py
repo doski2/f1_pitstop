@@ -1,54 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
-from strategy import build_lap_summary, load_session_csv
-
-PRACTICE_SESSION_NAMES = {
-    "Practice 1",
-    "Practice 2",
-    "Practice 3",
-    "Practice",
-    "FP1",
-    "FP2",
-    "FP3",
-}
-
-
-def collect_practice_data(data_root: Path, track: str, driver: str) -> pd.DataFrame:
-    """Aggregate lap summaries from all practice sessions for given track & driver."""
-    track_dir = data_root / track
-    frames = []
-    if not track_dir.exists():
-        return pd.DataFrame()
-    for session_dir in track_dir.iterdir():
-        if not session_dir.is_dir():
-            continue
-        if (
-            session_dir.name not in PRACTICE_SESSION_NAMES
-            and not session_dir.name.startswith("Practice")
-        ):
-            continue
-        # Search within driver subdirs
-        for d in session_dir.rglob(driver):
-            if d.is_dir():
-                for csv in d.glob("*.csv"):
-                    try:
-                        df = load_session_csv(csv)
-                        lap_sum = build_lap_summary(df)
-                        lap_sum["session"] = session_dir.name
-                        frames.append(lap_sum)
-                    except Exception:  # noqa
-                        continue
-    if frames:
-        out = pd.concat(frames, ignore_index=True)
-        # Clean lap_time_s (drop None / zeros)
-        out = out[(out["lap_time_s"].notna()) & (out["lap_time_s"] > 0)]
-        return out
-    return pd.DataFrame()
 
 
 def fit_degradation_model(
@@ -281,7 +236,7 @@ def live_pit_recommendation(
     for ev in evaluations[1:]:
         try:
             v = float(cast(float, ev["projected_total_remaining"]))
-        except Exception:
+        except (ValueError, TypeError):
             continue
         if v < best_val:
             best_val = v

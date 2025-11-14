@@ -5,18 +5,36 @@ import re
 import sys
 from pathlib import Path
 
-EXCLUDE_DIRS = {".git", ".venv", "venv", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache"}
+EXCLUDE_DIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+}
 PY_GLOB = "**/*.py"
 
-EXCLUDE_DIRS = {".git", ".venv", "venv", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache"}
+EXCLUDE_DIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+}
 PY_GLOB = "**/*.py"
 
-PAT_TRUE  = re.compile(r"\buse_container_width\s*=\s*True\b")
+PAT_TRUE = re.compile(r"\buse_container_width\s*=\s*True\b")
 PAT_FALSE = re.compile(r"\buse_container_width\s*=\s*False\b")
+
 
 def should_skip(p: Path) -> bool:
     parts = set(p.parts)
     return any(x in EXCLUDE_DIRS for x in parts)
+
 
 def transform_line(line: str) -> tuple[str, list[str]]:
     notes: list[str] = []
@@ -33,9 +51,16 @@ def transform_line(line: str) -> tuple[str, list[str]]:
         notes.append("uso no estándar de use_container_width; revisar manualmente")
     return new_line, notes
 
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Migrar use_container_width → width ('stretch'|'content')")
-    ap.add_argument("--apply", action="store_true", help="Escribir cambios en disco (por defecto solo vista previa)")
+    ap = argparse.ArgumentParser(
+        description="Migrar use_container_width → width ('stretch'|'content')"
+    )
+    ap.add_argument(
+        "--apply",
+        action="store_true",
+        help="Escribir cambios en disco (por defecto solo vista previa)",
+    )
     args = ap.parse_args()
 
     root = Path(__file__).resolve().parents[1]
@@ -76,8 +101,11 @@ def main() -> int:
             for n in notes:
                 print(f"     • {n}")
 
-    print(f"\nHecho. Archivos modificados: {changed}. {'(vista previa)' if not args.apply else ''}")
+    print(
+        f"\nHecho. Archivos modificados: {changed}. {'(vista previa)' if not args.apply else ''}"
+    )
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

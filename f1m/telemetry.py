@@ -8,10 +8,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List, Optional
+from functools import lru_cache
 
-import pandas as pd
+from .imports import Dict, List, Optional, Path, np, pd
 
 
 @dataclass
@@ -48,7 +47,72 @@ SESSION_COL_MAP = {
     "rl_temp": "rlTemp",
     "rr_temp": "rrTemp",
     "weather": "weather",
+    "safety_car": "safety_car",
+    "rain": "rain",
 }
+
+# Common column names used throughout the application
+COL_LAP = "currentLap"
+COL_LAP_TIME = "lap_time_s"
+COL_COMPOUND = "compound"
+COL_TIRE_AGE = "tire_age"
+COL_TIMESTAMP = "timestamp"
+COL_SESSION = "session"
+COL_FUEL = "fuel"
+COL_SOURCE_FILE = "source_file"
+COL_SAFETY_CAR = "safety_car"
+COL_RAIN = "rain"
+
+# Directory and file path constants
+DIR_CURATED = "curated"
+DIR_MODELS = "models"
+DIR_LOGS_IN = "logs_in"
+DIR_EXPORTED_DATA = "exported_data"
+
+# File extensions
+EXT_PARQUET = ".parquet"
+EXT_JSON = ".json"
+EXT_CSV = ".csv"
+
+
+def optimize_dataframe_memory(df: pd.DataFrame) -> pd.DataFrame:
+    """Optimize DataFrame memory usage by downcasting numeric types.
+
+    - Convert int64 to int32/int16 where appropriate
+    - Convert float64 to float32 where appropriate
+    - Preserve object and bool columns as-is
+    """
+    if df.empty:
+        return df
+
+    # Create a copy to avoid modifying the original
+    df_opt = df.copy()
+
+    # Downcast integer columns
+    int_cols = (
+        df.select_dtypes(include=[np.number]).select_dtypes(include=["int64"]).columns
+    )
+    for col in int_cols:
+        # Check if values fit in smaller integer types
+        col_min = df[col].min()
+        col_max = df[col].max()
+
+        if col_min >= np.iinfo(np.int8).min and col_max <= np.iinfo(np.int8).max:
+            df_opt[col] = df[col].astype(np.int8)
+        elif col_min >= np.iinfo(np.int16).min and col_max <= np.iinfo(np.int16).max:
+            df_opt[col] = df[col].astype(np.int16)
+        elif col_min >= np.iinfo(np.int32).min and col_max <= np.iinfo(np.int32).max:
+            df_opt[col] = df[col].astype(np.int32)
+        # Otherwise keep as int64
+
+    # Downcast float columns to float32
+    float_cols = (
+        df.select_dtypes(include=[np.number]).select_dtypes(include=["float64"]).columns
+    )
+    for col in float_cols:
+        df_opt[col] = df[col].astype(np.float32)
+
+    return df_opt
 
 
 def load_session_csv(csv_path: Path) -> pd.DataFrame:
@@ -63,6 +127,8 @@ def load_session_csv(csv_path: Path) -> pd.DataFrame:
         df["timestamp"] = pd.to_datetime(df["timestamp"])
     if SESSION_COL_MAP["lap"] in df.columns and "timestamp" in df.columns:
         df = df.sort_values("timestamp")
+    # Optimize memory usage
+    df = optimize_dataframe_memory(df)
     return df
 
 
@@ -132,6 +198,7 @@ def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+@lru_cache(maxsize=512)
 def _parse_lap_time_to_seconds(v) -> Optional[float]:
     """Accept floats (seconds) or strings like 'm:ss.xxx' and return seconds.
 
@@ -189,10 +256,15 @@ def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
         SESSION_COL_MAP["rr_temp"],
         "fuel",
         "pit_stop",
+        SESSION_COL_MAP["safety_car"],
+        SESSION_COL_MAP["rain"],
     ]
 
     existing = [c for c in cols if c in lap_last.columns]
-    return lap_last[existing].reset_index(drop=True)
+    result = lap_last[existing].reset_index(drop=True)
+    # Optimize memory usage
+    result = optimize_dataframe_memory(result)
+    return result
 
 
 def _aggregate_stint(

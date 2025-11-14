@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,6 +38,16 @@ SESSION_COL_MAP = {
     "rr_temp": "rrTemp",
     "weather": "weather",
 }
+
+# Common column names used throughout the application
+COL_LAP = "currentLap"
+COL_LAP_TIME = "lap_time_s"
+COL_COMPOUND = "compound"
+COL_TIRE_AGE = "tire_age"
+COL_TIMESTAMP = "timestamp"
+COL_SESSION = "session"
+COL_FUEL = "fuel"
+COL_SOURCE_FILE = "source_file"
 
 
 def load_session_csv(csv_path: Path) -> pd.DataFrame:
@@ -179,7 +191,7 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
     stint_number = 0
     for _, row in lap_summary.iterrows():
         compound = row.get(SESSION_COL_MAP["compound"])
-        lap_val = row.get("currentLap")
+        lap_val = row.get(COL_LAP)
         if lap_val is None:
             continue
         try:
@@ -199,8 +211,7 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
         ):
             # Close previous
             prev = lap_summary[
-                (lap_summary["currentLap"] >= stint_start_lap)
-                & (lap_summary["currentLap"] < lap)
+                (lap_summary[COL_LAP] >= stint_start_lap) & (lap_summary[COL_LAP] < lap)
             ]
             if not prev.empty:
                 stints.append(_aggregate_stint(prev, stint_number, current_compound))
@@ -209,7 +220,7 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
             stint_start_lap = lap
     # Close final stint
     if stint_start_lap is not None:
-        last_stint_rows = lap_summary[lap_summary["currentLap"] >= stint_start_lap]
+        last_stint_rows = lap_summary[lap_summary[COL_LAP] >= stint_start_lap]
         if not last_stint_rows.empty and current_compound is not None:
             stints.append(
                 _aggregate_stint(last_stint_rows, stint_number, current_compound)
@@ -243,10 +254,10 @@ def _aggregate_stint(
     }
     return Stint(
         stint_number=stint_number,
-        start_lap=int(stint_rows["currentLap"].min()),
-        end_lap=int(stint_rows["currentLap"].max()),
+        start_lap=int(stint_rows[COL_LAP].min()),
+        end_lap=int(stint_rows[COL_LAP].max()),
         compound=compound,
-        total_laps=int(stint_rows["currentLap"].nunique()),
+        total_laps=int(stint_rows[COL_LAP].nunique()),
         **metrics,
     )
 
@@ -300,7 +311,14 @@ def load_all_sessions(root: Path) -> pd.DataFrame:
             df = load_session_csv(p)
             df["source_file"] = str(p.relative_to(root))
             frames.append(df)
-        except Exception:  # noqa
+        except (
+            FileNotFoundError,
+            PermissionError,
+            pd.errors.EmptyDataError,
+            pd.errors.ParserError,
+            KeyError,
+            ValueError,
+        ):
             continue
     if not frames:
         return pd.DataFrame()

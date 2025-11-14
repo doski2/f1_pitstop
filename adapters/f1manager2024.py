@@ -5,35 +5,19 @@ from pathlib import Path
 
 import pandas as pd
 
-# Asegura que el módulo 'strategy.py' (ubicado en app/) sea importable
+# Asegura que el módulo 'f1m' sea importable
 _BASE = Path(__file__).resolve().parent.parent
-_APP_DIR = _BASE / "app"
-if str(_APP_DIR) not in sys.path:
-    sys.path.insert(0, str(_APP_DIR))
+_F1M_DIR = _BASE / "f1m"
+if str(_F1M_DIR) not in sys.path:
+    sys.path.insert(0, str(_F1M_DIR))
 
-# Reemplazar la importación directa que fallaba para linters/IDE y en tiempo de ejecución
+# Importar desde f1m.telemetry
 try:
-    # Import preferente como paquete (ayuda a herramientas estáticas)
-    from app.strategy import load_session_csv  # type: ignore
-except Exception:
-    # Fallback: cargar dinámicamente desde app/strategy.py usando importlib
-    try:
-        strategy_path = _APP_DIR / "strategy.py"
-        if strategy_path.exists():
-            import importlib.util
-
-            spec = importlib.util.spec_from_file_location("app.strategy", str(strategy_path))
-            module = importlib.util.module_from_spec(spec)  # type: ignore
-            assert spec and spec.loader
-            spec.loader.exec_module(module)  # type: ignore
-            load_session_csv = getattr(module, "load_session_csv")
-        else:
-            # Intentar importar como módulo plano si está en sys.path
-            from strategy import load_session_csv  # type: ignore
-    except Exception as e:
-        raise ImportError(
-            "No se pudo importar 'strategy'. Verifica que exista app/strategy.py y que la ruta sea correcta."
-        ) from e
+    from f1m.telemetry import load_session_csv
+except Exception as e:
+    raise ImportError(
+        "No se pudo importar desde 'f1m.telemetry'. Verifica que el paquete f1m esté correctamente instalado."
+    ) from e
 
 
 CANONICAL_COLS = [
@@ -67,7 +51,7 @@ def load_raw_csv(path: str | Path) -> pd.DataFrame:
         try:
             df["timestamp"] = pd.to_datetime(df["timestamp"])
             df = df.sort_values("timestamp")
-        except Exception:  # pragma: no cover
+        except (ValueError, TypeError):  # pragma: no cover
             pass
     # Si ya están alineadas las columnas no hacemos más cambios.
     return df

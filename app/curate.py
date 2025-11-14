@@ -8,6 +8,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+try:
+    from f1m.telemetry import DIR_CURATED
+except ImportError:
+    DIR_CURATED = "curated"
+
 RAW_COLUMNS_PRIMARY_KEYS = ["timestamp", "driverNumber", "currentLap", "turnNumber"]
 
 SESSION_ID_COLS = [
@@ -19,7 +24,7 @@ SESSION_ID_COLS = [
     "driverNumber",
 ]
 
-OUTPUT_BASE = Path("curated")
+OUTPUT_BASE = Path(DIR_CURATED)
 
 
 def read_csv_safe(path: Path) -> pd.DataFrame:
@@ -27,7 +32,12 @@ def read_csv_safe(path: Path) -> pd.DataFrame:
         df = pd.read_csv(path)
         df["source_file"] = path.name
         return df
-    except Exception as e:
+    except (
+        FileNotFoundError,
+        pd.errors.EmptyDataError,
+        pd.errors.ParserError,
+        UnicodeDecodeError,
+    ) as e:
         print(f"[WARN] No se pudo leer {path}: {e}")
         return pd.DataFrame()
 

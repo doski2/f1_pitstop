@@ -1,7 +1,18 @@
 # f1m package: utilidades de telemetría, modelado y planificación
 
+from .common import PRACTICE_SESSION_NAMES, collect_practice_data
+from .imports import (
+    Dict,
+    List,
+    Optional,
+    Path,
+    Tuple,
+    Union,
+    np,
+    optimize_dataframe_memory,
+    pd,
+)
 from .modeling import (
-    collect_practice_data,
     fit_degradation_model,
     max_stint_length,
     stint_time,
