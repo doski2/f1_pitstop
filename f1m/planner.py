@@ -109,7 +109,9 @@ def enumerate_plans(
 
         if remaining == 0:
             # Valid plan found
-            result: List[Tuple[List[Tuple[str, int]], float, float]] = [([], 0.0, fuel_level)]
+            result: List[Tuple[List[Tuple[str, int]], float, float]] = [
+                ([], 0.0, fuel_level)
+            ]
             _plan_cache[cache_key] = result
             return result
 
