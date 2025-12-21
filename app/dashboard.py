@@ -486,7 +486,6 @@ if not driver:
     st.warning("Seleccione un piloto con datos.")
     st.stop()
 
-assert driver is not None
 driver_dir = driver_root / driver
 csv_files = sorted(driver_dir.glob("*.csv"))
 if not csv_files:
