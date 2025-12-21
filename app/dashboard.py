@@ -472,7 +472,7 @@ st.sidebar.caption("Origen datos: F1 Manager 2024 (adapter)")
 
 session_root = DATA_ROOT / track
 sessions = [p.name for p in session_root.iterdir() if p.is_dir()]
-session = st.sidebar.selectbox("Sesión", sorted(sessions))
+session: str = st.sidebar.selectbox("Sesión", sorted(sessions))
 
 driver_root = session_root / session
 drivers = []
