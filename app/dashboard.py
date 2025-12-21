@@ -18,13 +18,13 @@ import pandas as pd
 import streamlit as st
 
 try:
-    import plotly.express as px  # type: ignore
-    import plotly.graph_objects as go  # type: ignore
+    import plotly.express as px
+    import plotly.graph_objects as go
 
     _PLOTLY_AVAILABLE = True
 except ImportError:
-    px = None  # type: ignore
-    go = None  # type: ignore
+    px = None
+    go = None
     _PLOTLY_AVAILABLE = False
 try:
     from f1m.common import collect_practice_data
@@ -467,7 +467,7 @@ def save_model_json(
 
 # Selección jerárquica: Circuito -> Sesión -> Piloto -> Archivo
 tracks = sorted({p.name for p in DATA_ROOT.iterdir() if p.is_dir()})
-track = st.sidebar.selectbox("Circuito", tracks)
+track: str = st.sidebar.selectbox("Circuito", tracks)
 st.sidebar.caption("Origen datos: F1 Manager 2024 (adapter)")
 
 session_root = DATA_ROOT / track
@@ -486,7 +486,7 @@ if not driver:
     st.warning("Seleccione un piloto con datos.")
     st.stop()
 
-driver_dir = driver_root / driver  # type: ignore[arg-type]
+driver_dir = driver_root / driver
 csv_files = sorted(driver_dir.glob("*.csv"))
 if not csv_files:
     st.warning("No hay archivos CSV para este piloto.")
@@ -519,7 +519,7 @@ auto_refresh = col_refresh_b.checkbox(
 if auto_refresh:
     _autoref = getattr(st, "autorefresh", None)
     if callable(_autoref):
-        _autoref(interval=15000, key="auto_rfr")  # type: ignore
+        _autoref(interval=15000, key="auto_rfr")
     else:
         # fallback mínimo: intentar experimental_rerun si está disponible
         _rerun = getattr(st, "experimental_rerun", None)
@@ -812,7 +812,7 @@ with tab_strategy:
                         }
                     )
                 else:
-                    a, b_age = coeffs  # type: ignore
+                    a, b_age = coeffs
                     model_rows.append(
                         {
                             "Compuesto": comp,

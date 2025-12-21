@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> Any:
             sys.argv = old_argv
     # Si no hay main(), intentar ejecutar como script
     if getattr(mod, "__file__", None):
-        mod_file = mod.__file__  # type: ignore[assignment]
+        mod_file = mod.__file__
         # mod.__file__ puede ser None en paquetes virtuales; comprobamos antes
         if mod_file is not None:
             with open(mod_file, "rb") as f:
