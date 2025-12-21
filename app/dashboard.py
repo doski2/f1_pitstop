@@ -76,7 +76,9 @@ except ImportError:
 
 
 @st.cache_data(show_spinner=False)
-def calculate_model_metrics(lap_summary: pd.DataFrame, models: dict) -> Dict[str, Dict[str, Union[float, int]]]:
+def calculate_model_metrics(
+    lap_summary: pd.DataFrame, models: dict
+) -> Dict[str, Dict[str, Union[float, int]]]:
     """Calcula métricas de calidad del modelo (MAE, R²)."""
     metrics: Dict[str, Dict[str, Union[float, int]]] = {}
     if lap_summary.empty or not models:
@@ -111,7 +113,9 @@ def calculate_model_metrics(lap_summary: pd.DataFrame, models: dict) -> Dict[str
 
 
 @st.cache_data(show_spinner=False)
-def calculate_consistency_metrics(lap_summary: pd.DataFrame) -> Dict[str, Dict[str, Union[float, int]]]:
+def calculate_consistency_metrics(
+    lap_summary: pd.DataFrame,
+) -> Dict[str, Dict[str, Union[float, int]]]:
     """Calcula métricas de consistencia del piloto."""
     metrics: Dict[str, Dict[str, Union[float, int]]] = {}
     if lap_summary.empty:
@@ -175,6 +179,9 @@ if DATA_ROOT is None:
         + _join_str([str(p.resolve()) for p in _candidate_paths], sep="\n")
     )
     st.stop()
+
+# Assertion for mypy: st.stop() prevents execution beyond this point
+assert DATA_ROOT is not None
 
 MODELS_ROOT = BASE_DIR / DIR_MODELS
 
