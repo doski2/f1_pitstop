@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, Tuple, Union, cast
+from typing import Dict, Iterable, Tuple, Union, Optional
 
 import pandas as pd
 import streamlit as st
@@ -484,7 +484,8 @@ if not drivers:
     st.warning("No hay pilotos con datos.")
     st.stop()
 
-driver = cast(str, st.sidebar.selectbox("Piloto", drivers))  # type: ignore[redundant-cast]
+driver = st.sidebar.selectbox("Piloto", drivers)
+assert driver is not None and isinstance(driver, str)
 
 driver_dir = driver_root / driver
 csv_files = sorted(driver_dir.glob("*.csv"))
@@ -492,9 +493,9 @@ if not csv_files:
     st.warning("No hay archivos CSV para este piloto.")
     st.stop()
 
-selected_csv = cast(
-    str, st.sidebar.selectbox("Archivo Telemetría", [f.name for f in csv_files])
-)  # type: ignore[redundant-cast]
+selected_csv: Optional[str] = st.sidebar.selectbox("Archivo Telemetría", [f.name for f in csv_files])
+assert selected_csv is not None and isinstance(selected_csv, str)
+# At this point selected_csv is narrowed to `str` by the assertion
 csv_path = driver_dir / selected_csv
 
 
