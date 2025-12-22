@@ -89,6 +89,7 @@
 - Resueltos errores de sintaxis en implementaciones de nuevas pestañas
 - Corregidos KeyError en acceso a columnas de DataFrames
 - Mejorada compatibilidad con versiones recientes de Streamlit
+- Corregidos avisos de tipo y lint en `app/dashboard.py` (anotaciones `Optional`, aserciones y orden de imports con `ruff`)
 
 ## v1.1.0
 
