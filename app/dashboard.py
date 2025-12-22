@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, Tuple, Union
+from typing import Dict, Iterable, Tuple, Union, cast
 
 import pandas as pd
 import streamlit as st
@@ -484,7 +484,7 @@ if not drivers:
     st.warning("No hay pilotos con datos.")
     st.stop()
 
-driver = st.sidebar.selectbox("Piloto", drivers)
+driver = cast(str, st.sidebar.selectbox("Piloto", drivers))  # type: ignore[redundant-cast]
 
 driver_dir = driver_root / driver
 csv_files = sorted(driver_dir.glob("*.csv"))
