@@ -484,7 +484,7 @@ if not drivers:
     st.warning("No hay pilotos con datos.")
     st.stop()
 
-driver = st.sidebar.selectbox("Piloto", drivers)
+driver: Optional[str] = st.sidebar.selectbox("Piloto", drivers)
 assert driver is not None and isinstance(driver, str)
 
 driver_dir = driver_root / driver
