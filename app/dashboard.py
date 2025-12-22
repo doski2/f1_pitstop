@@ -492,7 +492,9 @@ if not csv_files:
     st.warning("No hay archivos CSV para este piloto.")
     st.stop()
 
-selected_csv = cast(str, st.sidebar.selectbox("Archivo Telemetría", [f.name for f in csv_files]))  # type: ignore[redundant-cast]
+selected_csv = cast(
+    str, st.sidebar.selectbox("Archivo Telemetría", [f.name for f in csv_files])
+)  # type: ignore[redundant-cast]
 csv_path = driver_dir / selected_csv
 
 
