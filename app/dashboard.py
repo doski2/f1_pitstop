@@ -480,13 +480,11 @@ for d in driver_root.rglob("*"):  # allow deeper structure (driver folders)
     if d.is_dir() and any(f.suffix == ".csv" for f in d.glob("*.csv")):
         drivers.append(d.name)
 drivers = sorted(set(drivers))
-driver = st.sidebar.selectbox("Piloto", drivers) if drivers else None
-
-if not driver:
-    st.warning("Seleccione un piloto con datos.")
+if not drivers:
+    st.warning("No hay pilotos con datos.")
     st.stop()
 
-assert driver is not None
+driver = st.sidebar.selectbox("Piloto", drivers)
 
 driver_dir = driver_root / driver
 csv_files = sorted(driver_dir.glob("*.csv"))
