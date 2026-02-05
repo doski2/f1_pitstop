@@ -14,7 +14,7 @@ if str(_F1M_DIR) not in sys.path:
 # Importar desde f1m.telemetry
 try:
     from f1m.telemetry import load_session_csv
-except Exception as e:
+except (ModuleNotFoundError, ImportError, AttributeError) as e:
     raise ImportError(
         "No se pudo importar desde 'f1m.telemetry'. Verifica que el paquete f1m esté correctamente instalado."
     ) from e

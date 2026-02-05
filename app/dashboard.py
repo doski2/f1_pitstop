@@ -10,6 +10,7 @@ Solución: insertar el directorio raíz del proyecto en `sys.path` antes de impo
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple, Union
@@ -17,15 +18,17 @@ from typing import Dict, Iterable, Optional, Tuple, Union
 import pandas as pd
 import streamlit as st
 
+# Conditional imports for visualization and optional dependencies
 try:
     import plotly.express as px
     import plotly.graph_objects as go
-
     _PLOTLY_AVAILABLE = True
 except ImportError:
-    px = None
-    go = None
+    px = None  # type: ignore[assignment]
+    go = None  # type: ignore[assignment]
     _PLOTLY_AVAILABLE = False
+
+# Core module imports with fallback for sys.path manipulation
 try:
     from f1m.common import collect_practice_data
     from f1m.modeling import adjust_lap_time_for_conditions, fit_degradation_model
@@ -45,29 +48,32 @@ try:
         load_session_csv,
     )
 except ImportError:
-    # Añadir el directorio raíz del proyecto a sys.path para importar f1m
-    import sys
-    from pathlib import Path
-
-    project_root = Path(__file__).resolve().parents[1]
-    sys.path.insert(0, str(project_root))
-    from f1m.common import collect_practice_data
-    from f1m.modeling import adjust_lap_time_for_conditions, fit_degradation_model
-    from f1m.planner import enumerate_plans, live_pit_recommendation
-    from f1m.telemetry import (
-        COL_COMPOUND,
-        COL_LAP,
-        COL_LAP_TIME,
-        COL_RAIN,
-        COL_SAFETY_CAR,
-        COL_TIRE_AGE,
-        DIR_MODELS,
-        build_lap_summary,
-        build_stints,
-        detect_pit_events,
-        fia_compliance_check,
-        load_session_csv,
-    )
+    # Add project root to sys.path if direct import fails
+    _project_root = Path(__file__).resolve().parents[1]
+    if str(_project_root) not in sys.path:
+        sys.path.insert(0, str(_project_root))
+    try:
+        from f1m.common import collect_practice_data
+        from f1m.modeling import adjust_lap_time_for_conditions, fit_degradation_model
+        from f1m.planner import enumerate_plans, live_pit_recommendation
+        from f1m.telemetry import (
+            COL_COMPOUND,
+            COL_LAP,
+            COL_LAP_TIME,
+            COL_RAIN,
+            COL_SAFETY_CAR,
+            COL_TIRE_AGE,
+            DIR_MODELS,
+            build_lap_summary,
+            build_stints,
+            detect_pit_events,
+            fia_compliance_check,
+            load_session_csv,
+        )
+    except ImportError as e:
+        raise ImportError(
+            f"No se pudieron importar módulos de f1m. Asegúrate que f1m está en el PYTHONPATH. Error: {e}"
+        ) from e
 
 # TODO: fuel-aware modeling integration in subsequent iteration
 
@@ -244,8 +250,8 @@ def load_precomputed_model(track: str, driver: str):
                             float(coeffs[2]),
                         )
             return models, data.get("metadata", {})
-        except (json.JSONDecodeError, FileNotFoundError, KeyError, ValueError) as e:  # noqa
-            st.warning(f"Error cargando modelo precomputado: {e}")
+        except (json.JSONDecodeError, FileNotFoundError, KeyError, ValueError, IOError) as e:  # noqa
+            st.warning(f"Error cargando modelo precomputado: {type(e).__name__}: {e}")
     return {}, {}
 
 

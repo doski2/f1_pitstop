@@ -12,22 +12,24 @@ from typing import Dict, Tuple, Union, cast
 
 import pandas as pd
 
+# Core module imports with fallback for sys.path manipulation
 try:
     from f1m.modeling import fit_degradation_model
     from f1m.planner import enumerate_plans
     from f1m.telemetry import build_lap_summary, build_stints, load_session_csv
 except ImportError:
-    # Añadir el directorio raíz del proyecto a sys.path para importar f1m
-    project_root = Path(__file__).resolve().parents[1]
-    sys.path.insert(0, str(project_root))
-    from f1m.modeling import fit_degradation_model
-    from f1m.planner import enumerate_plans
-    from f1m.telemetry import build_lap_summary, build_stints, load_session_csv
-
-# Importar funciones para uso global en los ejemplos
-from f1m.modeling import fit_degradation_model
-from f1m.planner import enumerate_plans
-from f1m.telemetry import build_lap_summary, build_stints, load_session_csv
+    # Add project root to sys.path if direct import fails
+    _project_root = Path(__file__).resolve().parents[1]
+    if str(_project_root) not in sys.path:
+        sys.path.insert(0, str(_project_root))
+    try:
+        from f1m.modeling import fit_degradation_model
+        from f1m.planner import enumerate_plans
+        from f1m.telemetry import build_lap_summary, build_stints, load_session_csv
+    except ImportError as e:
+        raise ImportError(
+            f"No se pudieron importar módulos de f1m. Asegúrate que f1m está en el PYTHONPATH. Error: {e}"
+        ) from e
 
 
 def ejemplo_analisis_basico():

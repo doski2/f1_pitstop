@@ -196,7 +196,8 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
             continue
         try:
             lap = int(lap_val)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, RuntimeError):
+            # Skip rows with malformed lap numbers
             continue
         tire_age = row.get(SESSION_COL_MAP["tire_age"])
         is_pit = bool(row.get("pit_stop"))

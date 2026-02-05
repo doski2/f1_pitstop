@@ -238,36 +238,44 @@ def live_pit_recommendation(
     evaluations: List[dict] = []
     for pit_in in range(1, min(window, rem_laps) + 1):
         ages = np.arange(current_tire_age, current_tire_age + pit_in)
-        if use_fuel and c_cur is not None:
-            fuel_seg = current_fuel - cons_per_lap * np.arange(0, pit_in)
-            if (fuel_seg < 0).any():
-                continue
-            time_current = float(np.sum(a_cur + b_cur * ages + c_cur * fuel_seg))
-            fuel_after = current_fuel - cons_per_lap * pit_in
-        else:
-            time_current = float(np.sum(a_cur + b_cur * ages))
-            fuel_after = current_fuel - cons_per_lap * pit_in
+        try:
+            if use_fuel and c_cur is not None:
+                fuel_seg = current_fuel - cons_per_lap * np.arange(0, pit_in)
+                if (fuel_seg < 0).any():
+                    continue
+                time_current = float(np.sum(a_cur + b_cur * ages + c_cur * fuel_seg))
+                fuel_after = current_fuel - cons_per_lap * pit_in
+            else:
+                time_current = float(np.sum(a_cur + b_cur * ages))
+                fuel_after = current_fuel - cons_per_lap * pit_in
+        except (ValueError, TypeError, RuntimeError):
+            # Skip this pit window if any calculation error occurs
+            continue
         laps_after = rem_laps - pit_in
         if laps_after < 0:
             continue
         best_comp_alt: Optional[str] = None
         best_tail_time: Optional[float] = None
         for comp, coeffs in models.items():
-            if use_fuel and len(coeffs) == 3:
-                a_new, b_new, c_new = coeffs
-                new_ages = np.arange(0, laps_after)
-                if laps_after > 0:
-                    fuel_new = fuel_after - cons_per_lap * new_ages
-                    if (fuel_new < 0).any():
-                        continue
-                    time_new = float(
-                        np.sum(a_new + b_new * new_ages + c_new * fuel_new)
-                    )
+            try:
+                if use_fuel and len(coeffs) == 3:
+                    a_new, b_new, c_new = coeffs
+                    new_ages = np.arange(0, laps_after)
+                    if laps_after > 0:
+                        fuel_new = fuel_after - cons_per_lap * new_ages
+                        if (fuel_new < 0).any():
+                            continue
+                        time_new = float(
+                            np.sum(a_new + b_new * new_ages + c_new * fuel_new)
+                        )
+                    else:
+                        time_new = 0.0
                 else:
-                    time_new = 0.0
-            else:
-                a_new, b_new = coeffs[0], coeffs[1]
-                time_new = stint_time(a_new, b_new, laps_after)
+                    a_new, b_new = coeffs[0], coeffs[1]
+                    time_new = stint_time(a_new, b_new, laps_after)
+            except (ValueError, TypeError, RuntimeError, IndexError):
+                # Skip this compound if calculation fails
+                continue
             if best_tail_time is None or time_new < best_tail_time:
                 best_tail_time = time_new
                 best_comp_alt = comp

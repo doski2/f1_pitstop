@@ -236,7 +236,8 @@ def live_pit_recommendation(
     for ev in evaluations[1:]:
         try:
             v = float(cast(float, ev["projected_total_remaining"]))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, RuntimeError):
+            # Skip evaluation if projection calculation failed
             continue
         if v < best_val:
             best_val = v
