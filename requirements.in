@@ -2,12 +2,13 @@
 streamlit>=1.51.0
 pandas>=2.3.3
 plotly>=6.4.0
-numpy>=2.3.4
+numpy>=1.26,<3  # Use 1.26+ for better compatibility with multiple Python versions
 python-dateutil>=2.9.0
 pyarrow>=21.0.0
 
 # Development and linting tools
 ruff>=0.14.5
-mypy>=1.18.0
+mypy>=1.18.0  # Required for bokeh type checking
 pytest>=8.4.0
 black>=25.0.0
+bokeh>=3.8.0  # Explicit dependency (transitive via plotly)
