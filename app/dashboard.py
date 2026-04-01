@@ -1,150 +1,47 @@
 """Dashboard principal de estrategia.
 
-Nota sobre imports: si ejecutas `streamlit run dashboard.py` dentro de la carpeta `app/`,
-Python no verá el paquete hermano `adapters/` en el nivel raíz y fallará con
-`ModuleNotFoundError: No module named 'adapters'`.
-
-Solución: insertar el directorio raíz del proyecto en `sys.path` antes de importar.
+_imports.py inserta el directorio raíz del proyecto en sys.path antes de importar
+los módulos f1m, por lo que este archivo no necesita manipular sys.path directamente.
 """
 
 from __future__ import annotations
 
-import json
-import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Tuple, Union
+from typing import Iterable, Optional
 
 import pandas as pd
 import streamlit as st
+from _charts import (
+    create_compound_evolution_chart,
+    create_lap_times_chart,
+    create_temperatures_chart,
+)
+from _data import (
+    fit_degradation_models,
+    generate_race_plans,
+    load_and_process,
+    load_practice_data,
+    load_precomputed_model,
+    save_model_json,
+)
 
-# Conditional imports for visualization and optional dependencies
-try:
-    import plotly.express as px
-    import plotly.graph_objects as go
-
-    _PLOTLY_AVAILABLE = True
-except ImportError:
-    px = None  # type: ignore[assignment]
-    go = None  # type: ignore[assignment]
-    _PLOTLY_AVAILABLE = False
-
-# Core module imports with fallback for sys.path manipulation
-try:
-    from f1m.common import collect_practice_data
-    from f1m.modeling import adjust_lap_time_for_conditions, fit_degradation_model
-    from f1m.planner import enumerate_plans, live_pit_recommendation
-    from f1m.telemetry import (
-        COL_COMPOUND,
-        COL_LAP,
-        COL_LAP_TIME,
-        COL_RAIN,
-        COL_SAFETY_CAR,
-        COL_TIRE_AGE,
-        DIR_MODELS,
-        build_lap_summary,
-        build_stints,
-        detect_pit_events,
-        fia_compliance_check,
-        load_session_csv,
-    )
-except ImportError:
-    # Add project root to sys.path if direct import fails
-    _project_root = Path(__file__).resolve().parents[1]
-    if str(_project_root) not in sys.path:
-        sys.path.insert(0, str(_project_root))
-    try:
-        from f1m.common import collect_practice_data
-        from f1m.modeling import adjust_lap_time_for_conditions, fit_degradation_model
-        from f1m.planner import enumerate_plans, live_pit_recommendation
-        from f1m.telemetry import (
-            COL_COMPOUND,
-            COL_LAP,
-            COL_LAP_TIME,
-            COL_RAIN,
-            COL_SAFETY_CAR,
-            COL_TIRE_AGE,
-            DIR_MODELS,
-            build_lap_summary,
-            build_stints,
-            detect_pit_events,
-            fia_compliance_check,
-            load_session_csv,
-        )
-    except ImportError as e:
-        raise ImportError(
-            f"No se pudieron importar módulos de f1m. Asegúrate que f1m está en el PYTHONPATH. Error: {e}"
-        ) from e
+# _imports.py realiza el sys.path fix y re-exporta todos los símbolos de f1m.
+from _imports import (
+    _PLOTLY_AVAILABLE,
+    COL_LAP,
+    COL_LAP_TIME,
+    COL_RAIN,
+    COL_SAFETY_CAR,
+    DIR_MODELS,
+    adjust_lap_time_for_conditions,
+    go,
+    live_pit_recommendation,
+    px,
+)
+from _metrics import calculate_consistency_metrics, calculate_model_metrics
 
 # TODO: fuel-aware modeling integration in subsequent iteration
-
-
-# ---------- funciones cacheadas para cálculos costosos ----------
-
-
-@st.cache_data(show_spinner=False)
-def calculate_model_metrics(
-    lap_summary: pd.DataFrame, models: dict
-) -> Dict[str, Dict[str, Union[float, int]]]:
-    """Calcula métricas de calidad del modelo (MAE, R²)."""
-    metrics: Dict[str, Dict[str, Union[float, int]]] = {}
-    if lap_summary.empty or not models:
-        return metrics
-
-    for compound, params in models.items():
-        if len(params) >= 2:
-            compound_data = lap_summary[lap_summary["compound"] == compound]
-            if not compound_data.empty and "tire_age" in compound_data.columns:
-                # Predicciones del modelo
-                intercept, slope = params[0], params[1]
-                predictions = intercept + slope * compound_data["tire_age"]
-
-                # Valores reales
-                actual = compound_data["lap_time_s"]
-
-                # MAE
-                mae = abs(predictions - actual).mean()
-
-                # R²
-                ss_res = ((actual - predictions) ** 2).sum()
-                ss_tot = ((actual - actual.mean()) ** 2).sum()
-                r2 = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0
-
-                metrics[compound] = {
-                    "mae": mae,
-                    "r2": r2,
-                    "samples": len(compound_data),
-                }
-
-    return metrics
-
-
-@st.cache_data(show_spinner=False)
-def calculate_consistency_metrics(
-    lap_summary: pd.DataFrame,
-) -> Dict[str, Dict[str, Union[float, int]]]:
-    """Calcula métricas de consistencia del piloto."""
-    metrics: Dict[str, Dict[str, Union[float, int]]] = {}
-    if lap_summary.empty:
-        return metrics
-
-    # Desviación estándar por compuesto
-    if "compound" in lap_summary.columns and "lap_time_s" in lap_summary.columns:
-        consistency = lap_summary.groupby("compound")["lap_time_s"].agg(
-            ["std", "mean", "count"]
-        )
-        for compound, row in consistency.iterrows():
-            compound_str = str(compound)
-            if row["count"] >= 3:  # Mínimo 3 vueltas para consistencia
-                cv = (row["std"] / row["mean"]) * 100  # Coeficiente de variación
-                metrics[compound_str] = {
-                    "std": row["std"],
-                    "mean": row["mean"],
-                    "cv_percent": cv,
-                    "samples": row["count"],
-                }
-
-    return metrics
 
 
 st.set_page_config(page_title="Estrategia Pit Stop F1 Manager 2024", layout="wide")
@@ -192,292 +89,7 @@ assert DATA_ROOT is not None
 
 MODELS_ROOT = BASE_DIR / DIR_MODELS
 
-
-# ---------- utilidades cacheadas para listar disco ----------
-@st.cache_data(show_spinner=False)
-def list_tracks(data_root: Path) -> list[str]:
-    return sorted([p.name for p in data_root.iterdir() if p.is_dir()])
-
-
-@st.cache_data(show_spinner=False)
-def list_sessions_for(track_dir: Path) -> list[str]:
-    return sorted([p.name for p in track_dir.iterdir() if p.is_dir()])
-
-
-@st.cache_data(show_spinner=False)
-def list_drivers_for(session_dir: Path) -> list[str]:
-    drivers: set[str] = set()
-    # Recorremos *una vez* y cacheamos; evita disparar re-ejecuciones por IO en cada render
-    for d in session_dir.rglob("*"):
-        if d.is_dir() and any(f.suffix == ".csv" for f in d.glob("*.csv")):
-            drivers.add(d.name)
-    return sorted(drivers)
-
-
-# ---------- autorefresh con guarda ----------
-def autorefresh_guarded(enabled: bool, interval_ms: int = 15000):
-    # Solo activamos el autorefresh si el usuario lo marcó y aún no estaba activo
-    if enabled and not st.session_state["auto_guard"]:
-        st.session_state["auto_guard"] = True
-    if enabled:
-        # Streamlit se re-ejecuta cada intervalo, pero una única "línea de vida" por sesión
-        _autoref = getattr(st, "autorefresh", None)
-        if callable(_autoref):
-            _autoref(interval=interval_ms, key="auto_rfr")
-        else:
-            _rerun = getattr(st, "experimental_rerun", None)
-            if callable(_rerun):
-                _rerun()
-
-
-@st.cache_data(show_spinner=False)
-def load_precomputed_model(track: str, driver: str):
-    path = MODELS_ROOT / track / f"{driver}_model.json"
-    if path.exists():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            raw = data.get("models", {})
-            models: dict[
-                str, Union[Tuple[float, float], Tuple[float, float, float]]
-            ] = {}
-            for comp, coeffs in raw.items():
-                if isinstance(coeffs, list):
-                    if len(coeffs) == 2:
-                        models[comp] = (float(coeffs[0]), float(coeffs[1]))
-                    elif len(coeffs) == 3:
-                        models[comp] = (
-                            float(coeffs[0]),
-                            float(coeffs[1]),
-                            float(coeffs[2]),
-                        )
-            return models, data.get("metadata", {})
-        except (
-            json.JSONDecodeError,
-            FileNotFoundError,
-            KeyError,
-            ValueError,
-            IOError,
-        ) as e:  # noqa
-            st.warning(f"Error cargando modelo precomputado: {type(e).__name__}: {e}")
-    return {}, {}
-
-
-@st.cache_data(show_spinner=True)
-def load_practice_data(data_root: Path, track: str, driver: str) -> pd.DataFrame:
-    """Carga datos de práctica con caché inteligente.
-
-    La caché se invalida automáticamente cuando cambian los archivos de datos.
-    """
-    return collect_practice_data(data_root, track, driver)
-
-
-@st.cache_data(show_spinner=True)
-def fit_degradation_models(practice_data: pd.DataFrame):
-    """Ajusta modelos de degradación con caché para evitar recálculos costosos."""
-    return fit_degradation_model(practice_data)
-
-
-@st.cache_data(show_spinner=False)
-def generate_race_plans(
-    race_laps: int,
-    compounds: list,
-    models: dict,
-    practice_data: pd.DataFrame,
-    pit_loss: float,
-    max_stops: int = 2,
-    min_stint: int = 5,
-    require_two_compounds: bool = True,
-    use_fuel: bool = False,
-    start_fuel: float = 0.0,
-    cons_per_lap: float = 0.0,
-):
-    """Genera planes de carrera con caché para evitar recálculos costosos."""
-    return enumerate_plans(
-        race_laps,
-        compounds,
-        models,
-        practice_data,
-        pit_loss,
-        max_stops=max_stops,
-        min_stint=min_stint,
-        require_two_compounds=require_two_compounds,
-        use_fuel=use_fuel,
-        start_fuel=start_fuel,
-        cons_per_lap=cons_per_lap,
-    )
-
-
-# ---------- funciones cacheadas para visualizaciones ----------
-
-
-@st.cache_data(show_spinner=False)
-def create_lap_times_chart(lap_summary: pd.DataFrame):
-    """Crea gráfico de tiempos por vuelta con caché."""
-    if (
-        not _PLOTLY_AVAILABLE
-        or px is None
-        or lap_summary.empty
-        or "lap_time_s" not in lap_summary
-    ):
-        return None
-
-    fig = px.line(
-        lap_summary,
-        x=COL_LAP,
-        y=COL_LAP_TIME,
-        color=COL_COMPOUND,
-        markers=True,
-        labels={
-            COL_LAP: "Vuelta",
-            COL_LAP_TIME: "Tiempo (s)",
-            COL_COMPOUND: "Compuesto",
-        },
-        title="Tiempos de Vuelta",
-    )
-
-    # Añadir marcadores de pit stop
-    if (
-        "pit_stop" in lap_summary.columns
-        and lap_summary["pit_stop"].any()
-        and go is not None
-    ):
-        pit_pts = lap_summary[lap_summary["pit_stop"]]
-        fig.add_trace(
-            go.Scatter(
-                x=pit_pts[COL_LAP],
-                y=pit_pts[COL_LAP_TIME],
-                mode="markers",
-                marker=dict(symbol="triangle-down", size=12, color="red"),
-                name="Pit Stop",
-            )
-        )
-
-    return fig
-
-
-@st.cache_data(show_spinner=False)
-def create_degradation_chart(lap_summary: pd.DataFrame, models: dict):
-    """Crea gráfico de degradación con caché."""
-    if not _PLOTLY_AVAILABLE or go is None or lap_summary.empty:
-        return None
-
-    fig = go.Figure()
-
-    for compound, params in models.items():
-        compound_data = lap_summary[lap_summary["compound"] == compound]
-        if not compound_data.empty and "tire_age" in compound_data.columns:
-            # Predicciones del modelo
-            intercept, slope = params[0], params[1]
-            predictions = intercept + slope * compound_data["tire_age"]
-
-            fig.add_trace(
-                go.Scatter(
-                    x=compound_data["tire_age"],
-                    y=predictions,
-                    mode="lines",
-                    name=f"{compound} (modelo)",
-                    line=dict(dash="dash"),
-                )
-            )
-
-            # Datos reales
-            fig.add_trace(
-                go.Scatter(
-                    x=compound_data["tire_age"],
-                    y=compound_data["lap_time_s"],
-                    mode="markers",
-                    name=f"{compound} (real)",
-                    opacity=0.7,
-                )
-            )
-
-    fig.update_layout(
-        title="Degradación de Neumáticos",
-        xaxis_title="Edad del Neumático",
-        yaxis_title="Tiempo de Vuelta (s)",
-        legend_title="Compuesto",
-    )
-    return fig
-
-
-@st.cache_data(show_spinner=False)
-def create_temperatures_chart(df: pd.DataFrame):
-    """Crea gráfico de temperaturas con caché."""
-    if (
-        not _PLOTLY_AVAILABLE
-        or go is None
-        or df.empty
-        or "trackTemp" not in df.columns
-        or "airTemp" not in df.columns
-    ):
-        return None
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df["timestamp"], y=df["trackTemp"], name="Pista"))
-    fig.add_trace(go.Scatter(x=df["timestamp"], y=df["airTemp"], name="Aire"))
-
-    if "flTemp" in df.columns:
-        fig.add_trace(
-            go.Scatter(x=df["timestamp"], y=df["flTemp"], name="Delantero Izq")
-        )
-    if "frTemp" in df.columns:
-        fig.add_trace(
-            go.Scatter(x=df["timestamp"], y=df["frTemp"], name="Delantero Der")
-        )
-    if "rlTemp" in df.columns:
-        fig.add_trace(go.Scatter(x=df["timestamp"], y=df["rlTemp"], name="Trasero Izq"))
-    if "rrTemp" in df.columns:
-        fig.add_trace(go.Scatter(x=df["timestamp"], y=df["rrTemp"], name="Trasero Der"))
-
-    fig.update_layout(
-        title="Temperatura Pista vs Aire",
-        xaxis_title="Tiempo",
-        yaxis_title="°C (según juego)",
-    )
-    return fig
-
-
-@st.cache_data(show_spinner=False)
-def create_compound_evolution_chart(lap_summary: pd.DataFrame):
-    """Crea gráfico de evolución de compuesto con caché."""
-    if not _PLOTLY_AVAILABLE or px is None or lap_summary.empty:
-        return None
-
-    fig = px.scatter(
-        lap_summary,
-        x=COL_LAP,
-        y=COL_TIRE_AGE,
-        color=COL_COMPOUND,
-        size=COL_LAP_TIME,
-        labels={COL_LAP: "Vuelta", COL_TIRE_AGE: "Edad Neumático (vueltas)"},
-        title="Evolución Edad Neumático / Compuesto",
-    )
-    return fig
-
-
-def save_model_json(
-    track: str, driver: str, models: dict, sessions_used: list, fuel_used: bool
-):
-    MODELS_ROOT.mkdir(parents=True, exist_ok=True)
-    out_dir = MODELS_ROOT / track
-    out_dir.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "metadata": {
-            "track": track,
-            "driver": driver,
-            "sessions_included": sessions_used,
-            "fuel_used": fuel_used,
-            "saved_at": datetime.now().isoformat(timespec="seconds"),
-            "app_version": APP_VERSION,
-            "model_version": 1,
-        },
-        "models": {k: list(v) for k, v in models.items()},
-    }
-    out_path = out_dir / f"{driver}_model.json"
-    out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    st.success(f"Modelo guardado en {out_path}")
-
-
+# ---------- sidebar selectors ----------
 # Selección jerárquica: Circuito -> Sesión -> Piloto -> Archivo
 tracks = sorted({p.name for p in DATA_ROOT.iterdir() if p.is_dir()})
 track: str = st.sidebar.selectbox("Circuito", tracks)
@@ -512,19 +124,6 @@ selected_csv: Optional[str] = st.sidebar.selectbox(
 assert selected_csv is not None and isinstance(selected_csv, str)
 # At this point selected_csv is narrowed to `str` by the assertion
 csv_path = driver_dir / selected_csv
-
-
-@st.cache_data(show_spinner=True)
-def load_and_process(path: Path, mtime: float):
-    """Carga y procesa un archivo de telemetría vía adapter F1 Manager 2024.
-    mtime se incluye para invalidar cache cuando el archivo cambia.
-    """
-    df = load_session_csv(path)
-    df = detect_pit_events(df)
-    lap_summary = build_lap_summary(df)
-    stints = build_stints(lap_summary)
-    compliance = fia_compliance_check(stints, df.get("weather"))
-    return df, lap_summary, stints, compliance
 
 
 file_mtime = csv_path.stat().st_mtime
@@ -803,7 +402,7 @@ with tab_strategy:
         pre_models = {}
         pre_meta = {}
         if use_pre:
-            pre_models, pre_meta = load_precomputed_model(track, driver)
+            pre_models, pre_meta = load_precomputed_model(MODELS_ROOT, track, driver)
             if pre_models:
                 st.caption(
                     f"Modelo precomputado cargado (fuel_used={pre_meta.get('fuel_used')})"
@@ -848,7 +447,15 @@ with tab_strategy:
                     else []
                 )
                 fuel_used = any(len(v) == 3 for v in models.values())
-                save_model_json(track, driver, models, sessions_used, fuel_used)
+                save_model_json(
+                    MODELS_ROOT,
+                    track,
+                    driver,
+                    models,
+                    sessions_used,
+                    fuel_used,
+                    APP_VERSION,
+                )
             # Configuración de vueltas totales de carrera (permitir override aunque la carrera esté en progreso)
             TRACK_LAPS = {
                 "Bahrain": 57,
