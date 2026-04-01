@@ -56,13 +56,13 @@ def fit_degradation_model(
         y = dfc["lap_time_s"].values.astype(float)
         if fuel_available and "fuel" in dfc.columns:
             fuel = dfc["fuel"].values.astype(float)
-            A = np.column_stack([np.ones_like(X_age), X_age, fuel])
-            coef, *_ = np.linalg.lstsq(A, y, rcond=None)
+            A = np.column_stack([np.ones_like(X_age), X_age, fuel])  # type: ignore[call-overload]
+            coef, *_ = np.linalg.lstsq(A, y, rcond=None)  # type: ignore[call-overload]
             a, b_age, c_fuel = map(float, coef)
             models[comp] = (a, b_age, c_fuel)
         else:
-            A = np.column_stack([np.ones_like(X_age), X_age])
-            coef, *_ = np.linalg.lstsq(A, y, rcond=None)
+            A = np.column_stack([np.ones_like(X_age), X_age])  # type: ignore[call-overload]
+            coef, *_ = np.linalg.lstsq(A, y, rcond=None)  # type: ignore[call-overload]
             a, b_age = map(float, coef)
             models[comp] = (a, b_age)
     return models

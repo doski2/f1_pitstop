@@ -9,6 +9,24 @@ from __future__ import annotations
 import json
 import sys
 from datetime import datetime
+
+# ── Python 3.13 compat ──────────────────────────────────────────────────────
+# Python 3.13.5 simplified json.dumps to `JSONEncoder(**kw).encode(obj)`,
+# removing special handling for the `cls` kwarg.  Restore it so that
+# third-party libs (Plotly, etc.) that call json.dumps(obj, cls=X) still work.
+if not hasattr(json.dumps, "_patched_cls"):
+    _json_dumps_orig = json.dumps
+
+    def _json_dumps_compat(obj, **kw):  # type: ignore[misc]
+        cls = kw.pop("cls", None)
+        if cls is not None:
+            return cls(**kw).encode(obj)
+        return _json_dumps_orig(obj, **kw)
+
+    _json_dumps_compat._patched_cls = True  # type: ignore[attr-defined]
+    json.dumps = _json_dumps_compat  # type: ignore[assignment]
+# ────────────────────────────────────────────────────────────────────────────
+
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Tuple, Union
 
