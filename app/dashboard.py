@@ -22,6 +22,7 @@ import streamlit as st
 try:
     import plotly.express as px
     import plotly.graph_objects as go
+
     _PLOTLY_AVAILABLE = True
 except ImportError:
     px = None  # type: ignore[assignment]
@@ -250,7 +251,13 @@ def load_precomputed_model(track: str, driver: str):
                             float(coeffs[2]),
                         )
             return models, data.get("metadata", {})
-        except (json.JSONDecodeError, FileNotFoundError, KeyError, ValueError, IOError) as e:  # noqa
+        except (
+            json.JSONDecodeError,
+            FileNotFoundError,
+            KeyError,
+            ValueError,
+            IOError,
+        ) as e:  # noqa
             st.warning(f"Error cargando modelo precomputado: {type(e).__name__}: {e}")
     return {}, {}
 

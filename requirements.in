@@ -9,5 +9,3 @@ pyarrow>=1.0.0
 # Development and linting tools
 ruff>=0.0.250
 mypy>=0.991
-pytest>=6.2.0
-black>=21.0.0
