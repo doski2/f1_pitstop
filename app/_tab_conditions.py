@@ -74,7 +74,7 @@ def render_conditions_tab(lap_summary: pd.DataFrame, models: dict) -> None:
         )
 
     if models and (sc_percentage > 0 or rain_percentage > 0):
-        st.markdown("**Impacto estimado en estrategia de carrera:**")
+        st.caption("Impacto estimado en estrategia de carrera:")
         impact_data = []
         for compound, coeffs in models.items():
             base_time = coeffs[0]

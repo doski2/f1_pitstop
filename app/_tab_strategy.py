@@ -48,7 +48,8 @@ def render_strategy_tab(
     fallback_used = False
     if practice_data.empty and is_race and not lap_summary.empty:
         if st.checkbox(
-            "Sin prácticas. Usar vueltas iniciales de carrera como estimación provisoria"
+            "Sin prácticas. Usar vueltas iniciales de carrera como estimación provisoria",
+            key="fallback_race_sample",
         ):
             initial = lap_summary[lap_summary[COL_LAP_TIME].notna()].nsmallest(
                 12, COL_LAP
@@ -65,13 +66,13 @@ def render_strategy_tab(
         return models
 
     col_f1, col_f2, col_f3, col_f4 = st.columns([1, 1, 1, 1])
-    use_fuel = col_f1.checkbox("Usar combustible", value=True)
+    use_fuel = col_f1.checkbox("Usar combustible", value=True, key="use_fuel")
 
     # Auto-cálculo combustible inicial
     if "auto_start_fuel" not in st.session_state:
         st.session_state["auto_start_fuel"] = None
     if (
-        col_f2.button("Auto inicial", help="Detectar combustible inicial desde datos")
+        col_f2.button("Auto inicial", help="Detectar combustible inicial desde datos", key="auto_fuel_btn")
         and use_fuel
         and "fuel" in practice_data.columns
     ):
@@ -106,6 +107,7 @@ def render_strategy_tab(
         col_f4.button(
             "Auto consumo",
             help="Estimar consumo medio por vuelta usando diferencias de fuel",
+            key="auto_cons_btn",
         )
         and use_fuel
         and "fuel" in practice_data.columns
@@ -148,7 +150,7 @@ def render_strategy_tab(
             f"Consumo auto-estimado: {st.session_state['cons_per_lap_override']:.3f} kg/v"
         )
 
-    use_pre = st.checkbox("Usar modelo precomputado (si existe)", value=True)
+    use_pre = st.checkbox("Usar modelo precomputado (si existe)", value=True, key="use_pre")
     pre_models: dict = {}
     pre_meta: dict = {}
     if use_pre:
@@ -187,7 +189,7 @@ def render_strategy_tab(
     st.dataframe(pd.DataFrame(model_rows), use_container_width=True)
 
     col_sv1, _ = st.columns([1, 3])
-    if col_sv1.button("Guardar modelo"):
+    if col_sv1.button("Guardar modelo", key="save_model_btn"):
         sessions_used = (
             sorted(practice_data["session"].unique())
             if "session" in practice_data.columns
@@ -206,16 +208,19 @@ def render_strategy_tab(
         "Usar vueltas completadas",
         value=is_race,
         help="Si activo, la estrategia usa sólo las vueltas ya registradas.",
+        key="use_completed",
     )
     if use_completed:
         race_laps_horizon = max(completed_laps, 1)
         col_rl2.markdown(f"**Vueltas para cálculo:** {race_laps_horizon} (parcial)")
     else:
+        min_laps = completed_laps if completed_laps > 0 else 10
         race_laps_horizon = col_rl2.number_input(
             "Vueltas totales carrera",
-            value=total_race_laps_real,
-            min_value=completed_laps if completed_laps > 0 else 10,
+            value=max(total_race_laps_real, min_laps),
+            min_value=min_laps,
             max_value=110,
+            key="race_laps_input",
         )
         if race_laps_horizon < completed_laps:
             st.warning(
@@ -224,13 +229,13 @@ def render_strategy_tab(
             race_laps_horizon = completed_laps
 
     pit_loss = st.number_input(
-        "Pérdida pit stop (s)", value=22.0, min_value=5.0, max_value=60.0, step=0.5
+        "Pérdida pit stop (s)", value=22.0, min_value=5.0, max_value=60.0, step=0.5, key="pit_loss"
     )
-    max_stops = st.slider("Paradas máximas", 0, 4, 2)
-    min_stint = st.slider("Stint mínimo (vueltas)", 3, 20, 5)
-    require_two = st.checkbox("Requerir dos compuestos (seco)", value=True)
+    max_stops = st.slider("Paradas máximas", 0, 4, 2, key="max_stops")
+    min_stint = st.slider("Stint mínimo (vueltas)", 3, 20, 5, key="min_stint")
+    require_two = st.checkbox("Requerir dos compuestos (seco)", value=True, key="require_two")
 
-    if st.button("Calcular Estrategias"):
+    if st.button("Calcular Estrategias", key="calc_strategies"):
         plans = generate_race_plans(
             race_laps_horizon,
             list(models.keys()),

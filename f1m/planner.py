@@ -293,11 +293,7 @@ def live_pit_recommendation(
     if not evaluations:
         return None
     best = evaluations[0]
-    best_val = (
-        float(best["projected_total_remaining"])
-        if isinstance(best.get("projected_total_remaining"), (int, float))
-        else float(best["projected_total_remaining"])
-    )
+    best_val = float(best["projected_total_remaining"])
     for ev in evaluations[1:]:
         try:
             v = float(ev["projected_total_remaining"])

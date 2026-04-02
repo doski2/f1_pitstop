@@ -119,10 +119,6 @@ if auto_refresh:
     _autoref = getattr(st, "autorefresh", None)
     if callable(_autoref):
         _autoref(interval=15000, key="auto_rfr")
-    else:
-        _rerun = getattr(st, "experimental_rerun", None)
-        if callable(_rerun):
-            _rerun()
 if do_refresh:
     st.cache_data.clear()
 

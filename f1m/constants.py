@@ -17,19 +17,6 @@ DEFAULT_CONS_PER_LAP = 0.0
 # Pit stop parameters
 DEFAULT_PIT_LOSS_SECONDS = 20.0
 
-# Memory optimization thresholds
-INT64_THRESHOLD = 2**31 - 1  # Max int32 value
-INT32_THRESHOLD = 2**15 - 1  # Max int16 value
-INT16_THRESHOLD = 2**7 - 1  # Max int8 value
-
-# Performance thresholds for benchmarking
-PERFORMANCE_WARNING_THRESHOLD = 1.0  # seconds
-PERFORMANCE_CRITICAL_THRESHOLD = 5.0  # seconds
-
-# Model quality thresholds
-MIN_MODEL_R2 = 0.5
-MAX_MODEL_MAE = 5.0  # seconds
-
 # Safety Car and Weather flags
 SAFETY_CAR_FLAG = "safety_car"
 RAIN_FLAG = "rain"

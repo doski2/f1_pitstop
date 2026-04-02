@@ -8,7 +8,7 @@ para analizar datos de telemetría de F1 Manager 2024.
 
 import sys
 from pathlib import Path
-from typing import Dict, Tuple, Union, cast
+from typing import Dict, Tuple
 
 import pandas as pd
 
@@ -59,9 +59,9 @@ def ejemplo_analisis_basico():
     print(f"Stints detectados: {len(stints)}")
 
     # Mostrar estadísticas básicas
-    if not laps.empty:
-        print(".2f")
-        print(".2f")
+    if not laps.empty and "lap_time_s" in laps.columns:
+        print(f"Tiempo mínimo: {laps['lap_time_s'].min():.2f}s")
+        print(f"Tiempo promedio: {laps['lap_time_s'].mean():.2f}s")
 
 
 def ejemplo_metricas_modelo():
@@ -126,7 +126,7 @@ def ejemplo_planificacion():
     plans = enumerate_plans(
         race_laps,
         compounds,
-        cast(Dict[str, Union[Tuple[float, float], Tuple[float, float, float]]], models),
+        models,
         practice_data,
         pit_loss,
         top_k=5,

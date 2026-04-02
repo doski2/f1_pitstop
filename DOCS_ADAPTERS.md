@@ -16,7 +16,7 @@ def load_raw_csv(path) -> pandas.DataFrame:
 
 ## Pasos Nuevo Adapter
 
-1. Copiar `adapters/stub_example.py`.
+1. Crear un nuevo archivo en `adapters/` (ej: `adapters/mi_juego.py`).
 2. Leer CSV.
 3. Mapear columnas.
 4. Derivar `lap_time_s` si falta.

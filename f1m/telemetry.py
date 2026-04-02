@@ -390,10 +390,10 @@ def fia_compliance_check(
     max_allowed = int(total_laps * 0.7)
     if any(s.total_laps > max_allowed for s in stints) and total_laps >= 15:
         result["max_stint_ok"] = False
-        notes.append("A stint exceeds 70% of distance (heuristic).")
+        notes.append("Un stint supera el 70% de la distancia (heurístico).")
 
     if len(stints) < 2 and total_laps > 20:
         result["pit_stop_required"] = False
-        notes.append("Long race with a single or no stops detected.")
+        notes.append("Carrera larga con una sola parada o ninguna detectada.")
 
     return result

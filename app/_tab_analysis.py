@@ -24,10 +24,12 @@ def render_metrics_tab(lap_summary: pd.DataFrame, models: dict) -> None:
     metrics_df.columns = ["MAE (s)", "R²", "Muestras"]
     st.dataframe(metrics_df, use_container_width=True)
 
-    st.markdown("**Interpretación:**")
-    st.markdown("- **MAE**: Error absoluto medio en segundos (menor es mejor)")
-    st.markdown("- **R²**: Coeficiente de determinación (más cercano a 1.0 es mejor)")
-    st.markdown("- **Muestras**: Número de puntos de datos usados")
+    st.markdown(
+        "**Interpretación:**\n"
+        "- **MAE**: Error absoluto medio en segundos (menor es mejor)\n"
+        "- **R²**: Coeficiente de determinación (más cercano a 1.0 es mejor)\n"
+        "- **Muestras**: Número de puntos de datos usados"
+    )
 
     if not lap_summary.empty and _PLOTLY_AVAILABLE and go is not None:
         st.markdown("### Análisis de Residuos")
@@ -117,10 +119,12 @@ def render_consistency_tab(lap_summary: pd.DataFrame) -> None:
     consistency_df.columns = ["Desv. Estándar (s)", "Media (s)", "CV (%)", "Muestras"]
     st.dataframe(consistency_df, use_container_width=True)
 
-    st.markdown("**Interpretación:**")
-    st.markdown("- **Desv. Estándar**: Variabilidad en tiempos de vuelta (menor es mejor)")
-    st.markdown("- **CV (%)**: Coeficiente de variación (consistencia relativa)")
-    st.markdown("- **Muestras**: Número de vueltas analizadas")
+    st.markdown(
+        "**Interpretación:**\n"
+        "- **Desv. Estándar**: Variabilidad en tiempos de vuelta (menor es mejor)\n"
+        "- **CV (%)**: Coeficiente de variación (consistencia relativa)\n"
+        "- **Muestras**: Número de vueltas analizadas"
+    )
 
     if not _PLOTLY_AVAILABLE or go is None:
         return

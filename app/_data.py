@@ -47,13 +47,7 @@ def autorefresh_guarded(enabled: bool, interval_ms: int = 15000) -> None:
         _autoref = getattr(st, "autorefresh", None)
         if callable(_autoref):
             _autoref(interval=interval_ms, key="auto_rfr")
-        else:
-            _rerun = getattr(st, "experimental_rerun", None)
-            if callable(_rerun):
-                _rerun()
 
-
-@st.cache_data(show_spinner=False)
 def load_precomputed_model(models_root: Path, track: str, driver: str):
     path = models_root / track / f"{driver}_model.json"
     if path.exists():

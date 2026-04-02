@@ -3,8 +3,7 @@ PY=python
 .PHONY: install lint format typecheck test qa
 
 install:
-	$(PY) -m pip install -r requirements.txt || true
-	$(PY) -m pip install ruff black mypy pytest
+	$(PY) -m pip install -r requirements.txt
 
 lint:
 	ruff check .

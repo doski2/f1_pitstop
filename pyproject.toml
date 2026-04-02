@@ -16,24 +16,9 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Games/Entertainment",
 ]
-
-[tool.black]
-line-length = 100
-target-version = ["py39","py310","py311"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py39"
-extend-select = ["I"]
-fix = true
-exclude = [".git",".venv","build","dist","__pycache__"]
-
-[tool.ruff.lint.isort]
-combine-as-imports = true
-force-sort-within-sections = true
-known-first-party = ["f1m"]
 
 [build-system]
 requires = ["setuptools>=61"]

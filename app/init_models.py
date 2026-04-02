@@ -20,20 +20,6 @@ from f1m.telemetry import (
 # Directory path constants
 DEFAULT_DATA_ROOT = f"{DIR_LOGS_IN}/{DIR_EXPORTED_DATA}"
 
-# ---------------------------------------------------------------------------
-# Utilidades
-# ---------------------------------------------------------------------------
-
-PRACTICE_LIKE = {
-    "Practice 1",
-    "Practice 2",
-    "Practice 3",
-    "Practice",
-    "FP1",
-    "FP2",
-    "FP3",
-}
-
 
 def discover_drivers(track_dir: Path) -> List[str]:
     drivers: List[str] = []

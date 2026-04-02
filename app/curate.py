@@ -134,7 +134,7 @@ def save_partitioned(laps: pd.DataFrame, base: Path = OUTPUT_BASE) -> None:
     if laps.empty:
         print("[INFO] Nada que guardar.")
         return
-    for (track, session, driver_num, first, last), sub in laps.groupby(
+    for group_key, sub in laps.groupby(
         [
             c
             for c in [
@@ -147,6 +147,21 @@ def save_partitioned(laps: pd.DataFrame, base: Path = OUTPUT_BASE) -> None:
             if c in laps.columns
         ]
     ):
+        if isinstance(group_key, tuple):
+            key_vals = list(group_key)
+        else:
+            key_vals = [group_key]
+        key_map = dict(
+            zip(
+                [c for c in ["trackName", "sessionType", "driverNumber", "driverFirstName", "driverLastName"] if c in laps.columns],
+                key_vals,
+            )
+        )
+        track = key_map.get("trackName", "unknown")
+        session = key_map.get("sessionType", "unknown")
+        driver_num = key_map.get("driverNumber", "")
+        first = key_map.get("driverFirstName", "")
+        last = key_map.get("driverLastName", "")
         out_dir = (
             base
             / f"track={track}"

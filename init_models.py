@@ -25,16 +25,6 @@ def main(argv: list[str] | None = None) -> Any:
             return mod.main()
         finally:
             sys.argv = old_argv
-    # Si no hay main(), intentar ejecutar como script
-    if getattr(mod, "__file__", None):
-        mod_file = mod.__file__
-        # mod.__file__ puede ser None en paquetes virtuales; comprobamos antes
-        if mod_file is not None:
-            with open(mod_file, "rb") as f:
-                code = compile(f.read(), mod_file, "exec")
-                ns: dict[str, object] = {"__name__": "__main__"}
-                exec(code, ns)
-                return None
     raise RuntimeError("Modulo 'app.init_models' no tiene entrypoint 'main'")
 
 
