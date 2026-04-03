@@ -385,7 +385,7 @@ def fia_compliance_check(
 
     if is_dry and len(compounds) < 2 and total_laps >= 10:
         result["used_two_compounds"] = False
-        notes.append("Fewer than two compounds used in dry conditions.")
+        notes.append("Menos de dos compuestos usados en condiciones de seco.")
 
     max_allowed = int(total_laps * 0.7)
     if any(s.total_laps > max_allowed for s in stints) and total_laps >= 15:
