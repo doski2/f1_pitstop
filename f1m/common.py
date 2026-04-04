@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .constants import COMPOUND_CANONICAL_MAP, COMPOUND_COLOR_MAP, COMPOUND_DISPLAY_MAP
 from .imports import Path, pd
 from .telemetry import (
     COL_LAP_TIME,
@@ -18,6 +19,36 @@ PRACTICE_SESSION_NAMES = {
     "FP2",
     "FP3",
 }
+
+
+def display_compound(raw: str) -> str:
+    """Return enriched display label for a compound name.
+
+    Known Pirelli spec IDs (C1-C5) get a hardness suffix.
+    Plain category names (Hard/Medium/Soft/...) are returned unchanged.
+    Any unrecognised value is returned as-is.
+    """
+    return COMPOUND_DISPLAY_MAP.get(str(raw), str(raw))
+
+
+def compound_color(raw: str) -> str:
+    """Return the F1-standard hex color for a compound or its display label."""
+    return COMPOUND_COLOR_MAP.get(display_compound(raw), COMPOUND_COLOR_MAP.get(str(raw), "#888888"))
+
+
+def canonical_compound(raw: str) -> str:
+    """Normalise any raw compound string to its canonical hardness category.
+
+    Examples
+    --------
+    canonical_compound("C3")  → "Soft"
+    canonical_compound("C4")  → "Soft"
+    canonical_compound("C10") → "Hard"
+    canonical_compound("Soft") → "Soft"
+
+    Unknown values are returned unchanged so the model can still attempt a fit.
+    """
+    return COMPOUND_CANONICAL_MAP.get(str(raw), str(raw))
 
 
 def collect_practice_data(data_root: Path, track: str, driver: str) -> pd.DataFrame:

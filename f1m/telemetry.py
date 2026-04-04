@@ -133,16 +133,24 @@ def load_session_csv(csv_path: Path) -> pd.DataFrame:
 
 
 def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
-    """Add boolean column 'pit_stop' using heuristics.
+    """Add boolean columns 'pit_stop' and 'tire_change_pit' using heuristics.
 
-    Heuristics:
-    - tire_age reset to 0 or a large drop
-    - compound change when tire_age <= 1
-    - explicit flags in pit status columns if present
+    ``pit_stop``       – True en cualquier vuelta donde el coche entró en boxes
+                         (útil para el marcador en el gráfico de tiempos).
+    ``tire_change_pit``– True solo cuando hubo cambio de neumáticos real
+                         (reset de tire_age o cambio de compuesto). Usado para
+                         cortar stints en build_stints.
     """
+    # Statuses that indicate the car is somewhere in the pit lane
+    _PIT_LANE_STATUSES = {
+        "requested", "entering", "queuing", "stopped",
+        "exiting", "in garage", "jack up", "releasing",
+        "car setup", "approach", "penalty",
+    }
 
     if SESSION_COL_MAP["lap"] not in df.columns:
         df["pit_stop"] = False
+        df["tire_change_pit"] = False
         return df
 
     pit_status_col: Optional[str] = None
@@ -154,17 +162,17 @@ def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
     if SESSION_COL_MAP["tire_age"] not in df.columns:
         comp = df.get(SESSION_COL_MAP["compound"])
         if isinstance(comp, pd.Series):
-            # explicit boolean dtype so static checkers understand the series type
             base_flags: pd.Series = comp.ne(comp.shift(1)).fillna(False).astype(bool)
         else:
             base_flags = pd.Series(False, index=df.index, dtype=bool)
 
         if pit_status_col:
-            ps = df[pit_status_col].astype(str).str.lower()
-            status_flags = ps.str.contains("pit") | ps.str.contains("stop")
+            ps = df[pit_status_col].astype(str).str.strip().str.lower()
+            status_flags = ps.isin(_PIT_LANE_STATUSES)
             df["pit_stop"] = (base_flags | status_flags).fillna(False)
         else:
             df["pit_stop"] = base_flags
+        df["tire_change_pit"] = df["pit_stop"]
         return df
 
     tire_age = pd.to_numeric(df[SESSION_COL_MAP["tire_age"]], errors="coerce")
@@ -176,7 +184,6 @@ def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
     reset_zero = (tire_age == 0) & (age_prev > 0) & (lap > 0)
     age_drop = (tire_age < age_prev) & (age_prev >= 2) & (lap > 0)
 
-    # prepare comp_change as a Series variable (annotate once)
     comp_change: pd.Series
     if isinstance(comp, pd.Series) and isinstance(comp_prev, pd.Series):
         comp_change = (
@@ -187,14 +194,18 @@ def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:
     else:
         comp_change = pd.Series([False] * len(df.index), index=df.index, dtype=bool)
 
-    pit_flags = (reset_zero | age_drop | comp_change).fillna(False)
+    # tire_change_pit: solo cuando realmente se cambiaron los neumáticos
+    tire_change_flags = (reset_zero | age_drop | comp_change).fillna(False)
 
+    # pit_stop: cualquier vuelta en boxes (incluye paradas sin cambio de rueda)
+    pit_flags = tire_change_flags.copy()
     if pit_status_col:
-        ps = df[pit_status_col].astype(str).str.lower()
-        status_flags = ps.str.contains("pit") | ps.str.contains("stop")
+        ps = df[pit_status_col].astype(str).str.strip().str.lower()
+        status_flags = ps.isin(_PIT_LANE_STATUSES)
         pit_flags = (pit_flags | status_flags).fillna(False)
 
     df["pit_stop"] = pit_flags
+    df["tire_change_pit"] = tire_change_flags.astype(bool)
     return df
 
 
@@ -229,14 +240,21 @@ def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
 
     # annotate once
     pit_by_lap: pd.Series
+    tire_change_by_lap: pd.Series
     if "pit_stop" in ordered.columns:
         pit_by_lap = ordered.groupby(lap_col)["pit_stop"].any()
     else:
         uniq = list(ordered[lap_col].unique())
         pit_by_lap = pd.Series([False] * len(uniq), index=uniq, dtype=bool)
 
+    if "tire_change_pit" in ordered.columns:
+        tire_change_by_lap = ordered.groupby(lap_col)["tire_change_pit"].any()
+    else:
+        tire_change_by_lap = pit_by_lap
+
     lap_last = ordered.groupby(lap_col).tail(1).copy()
     lap_last["pit_stop"] = lap_last[lap_col].map(pit_by_lap).fillna(False)
+    lap_last["tire_change_pit"] = lap_last[lap_col].map(tire_change_by_lap).fillna(False)
 
     if SESSION_COL_MAP["lap_time_col"] in lap_last.columns:
         lap_last["lap_time_s"] = lap_last[SESSION_COL_MAP["lap_time_col"]].apply(
@@ -256,6 +274,7 @@ def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
         SESSION_COL_MAP["rr_temp"],
         "fuel",
         "pit_stop",
+        "tire_change_pit",
         SESSION_COL_MAP["safety_car"],
         SESSION_COL_MAP["rain"],
     ]
@@ -307,7 +326,9 @@ def _aggregate_stint(
 def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
     """Build stints list from lap summary.
 
-    Starts a new stint on pit_stop True or when tire_age resets to 0.
+    Starts a new stint on tire_change_pit (cambio real de neumáticos) o cuando
+    tire_age se resetea o cambia el compuesto. Las paradas sin cambio de rueda
+    (pit_stop=True pero tire_change_pit=False) NO cortan el stint.
     """
 
     if lap_summary.empty:
@@ -332,7 +353,9 @@ def build_stints(lap_summary: pd.DataFrame) -> List[Stint]:
         reset_age = (tire_age == 0) & (tire_age.shift(1) > 0)
         change_mask = change_mask | reset_age.fillna(False)
 
-    if "pit_stop" in ordered.columns:
+    if "tire_change_pit" in ordered.columns:
+        change_mask = change_mask | ordered["tire_change_pit"].fillna(False)
+    elif "pit_stop" in ordered.columns:
         change_mask = change_mask | ordered["pit_stop"].fillna(False)
 
     stint_ids = change_mask.cumsum().fillna(0).astype(int)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 import pandas as pd
 import streamlit as st
@@ -41,12 +41,27 @@ def list_drivers_for(session_dir: Path) -> list[str]:
 
 
 def autorefresh_guarded(enabled: bool, interval_ms: int = 15000) -> None:
-    if enabled and not st.session_state["auto_guard"]:
-        st.session_state["auto_guard"] = True
-    if enabled:
-        _autoref = getattr(st, "autorefresh", None)
-        if callable(_autoref):
-            _autoref(interval=interval_ms, key="auto_rfr")
+    """No-op: auto-refresh gestionado via st.fragment(run_every=...) en dashboard.py."""
+    pass
+
+
+def fit_combined_model(
+    practice_data: pd.DataFrame,
+    race_laps: Optional[pd.DataFrame],
+) -> pd.DataFrame:
+    """Merge practice + race data, giving race laps 2× weight in OLS.
+
+    Duplicating race rows increases their influence in the regression relative
+    to the larger (but older) practice dataset, so current race pace dominates.
+    """
+    frames = [
+        f
+        for f in [practice_data, race_laps, race_laps]
+        if f is not None and not f.empty
+    ]
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
 
 def load_precomputed_model(models_root: Path, track: str, driver: str):
     path = models_root / track / f"{driver}_model.json"
@@ -55,7 +70,7 @@ def load_precomputed_model(models_root: Path, track: str, driver: str):
             data = json.loads(path.read_text(encoding="utf-8"))
             raw = data.get("models", {})
             models: dict[
-                str, Union[Tuple[float, float], Tuple[float, float, float]]
+                str, Union[Tuple[float, float], Tuple[float, float, float], Tuple[float, float, float, float]]
             ] = {}
             for comp, coeffs in raw.items():
                 if isinstance(coeffs, list):
@@ -66,6 +81,13 @@ def load_precomputed_model(models_root: Path, track: str, driver: str):
                             float(coeffs[0]),
                             float(coeffs[1]),
                             float(coeffs[2]),
+                        )
+                    elif len(coeffs) == 4:
+                        models[comp] = (
+                            float(coeffs[0]),
+                            float(coeffs[1]),
+                            float(coeffs[2]),
+                            float(coeffs[3]),
                         )
             return models, data.get("metadata", {})
         except (
@@ -102,11 +124,13 @@ def generate_race_plans(
     practice_data: pd.DataFrame,
     pit_loss: float,
     max_stops: int = 2,
+    exact_stops: bool = True,
     min_stint: int = 5,
     require_two_compounds: bool = True,
     use_fuel: bool = False,
     start_fuel: float = 0.0,
     cons_per_lap: float = 0.0,
+    race_temp: float = 0.0,
 ):
     """Genera planes de carrera con caché para evitar recálculos costosos."""
     return enumerate_plans(
@@ -116,11 +140,13 @@ def generate_race_plans(
         practice_data,
         pit_loss,
         max_stops=max_stops,
+        exact_stops=exact_stops,
         min_stint=min_stint,
         require_two_compounds=require_two_compounds,
         use_fuel=use_fuel,
         start_fuel=start_fuel,
         cons_per_lap=cons_per_lap,
+        race_temp=race_temp,
     )
 
 
@@ -145,6 +171,7 @@ def save_model_json(
     sessions_used: list,
     fuel_used: bool,
     app_version: str,
+    temp_used: bool = False,
 ) -> None:
     models_root.mkdir(parents=True, exist_ok=True)
     out_dir = models_root / track
@@ -155,6 +182,7 @@ def save_model_json(
             "driver": driver,
             "sessions_included": sessions_used,
             "fuel_used": fuel_used,
+            "temp_used": temp_used,
             "saved_at": datetime.now().isoformat(timespec="seconds"),
             "app_version": app_version,
             "model_version": 1,

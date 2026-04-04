@@ -115,12 +115,17 @@ file_mtime = csv_path.stat().st_mtime
 col_refresh_a, col_refresh_b, _ = st.sidebar.columns([1, 1, 1])
 do_refresh = col_refresh_a.button("Refrescar")
 auto_refresh = col_refresh_b.checkbox("Auto", value=False, help="Auto-refrescar cada 15s")
-if auto_refresh:
-    _autoref = getattr(st, "autorefresh", None)
-    if callable(_autoref):
-        _autoref(interval=15000, key="auto_rfr")
 if do_refresh:
     st.cache_data.clear()
+    st.rerun()
+
+_run_every = 15 if auto_refresh else None
+
+@st.fragment(run_every=_run_every)
+def _auto_reloader():
+    pass
+
+_auto_reloader()
 
 df, lap_summary, stints, compliance = load_and_process(csv_path, file_mtime)
 st.sidebar.caption(

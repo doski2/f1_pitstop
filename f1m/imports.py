@@ -15,6 +15,9 @@ import pandas as pd
 
 # Package imports
 from .constants import (
+    COMPOUND_CANONICAL_MAP,
+    COMPOUND_COLOR_MAP,
+    COMPOUND_DISPLAY_MAP,
     DEFAULT_CONS_PER_LAP,
     DEFAULT_MAX_STOPS,
     DEFAULT_MIN_STINT,
@@ -22,10 +25,12 @@ from .constants import (
     DEFAULT_START_FUEL,
     DEFAULT_TOP_K_PLANS,
     DRY_CONDITIONS,
+    MIN_TEMP_STD,
     RAIN_FLAG,
     RAIN_TIME_MULTIPLIER,
     SAFETY_CAR_FLAG,
     SAFETY_CAR_TIME_MULTIPLIER,
+    TEMP_REF_CELSIUS,
     WET_CONDITIONS,
 )
 from .telemetry import (
@@ -58,6 +63,11 @@ __all__ = [
     "RAIN_TIME_MULTIPLIER",
     "SAFETY_CAR_FLAG",
     "SAFETY_CAR_TIME_MULTIPLIER",
+    "MIN_TEMP_STD",
+    "TEMP_REF_CELSIUS",
+    "COMPOUND_CANONICAL_MAP",
+    "COMPOUND_COLOR_MAP",
+    "COMPOUND_DISPLAY_MAP",
     "WET_CONDITIONS",
     # Column constants
     "COL_RAIN",

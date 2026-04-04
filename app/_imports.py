@@ -45,9 +45,23 @@ except ImportError:
 # Ensure project root is on sys.path so f1m is importable regardless of CWD.
 # __file__ is app/_imports.py → parents[1] is the project root.
 try:
-    from f1m.common import collect_practice_data
+    from f1m.common import (
+        canonical_compound,
+        collect_practice_data,
+        compound_color,
+        display_compound,
+    )
+    from f1m.constants import (
+        COMPOUND_CANONICAL_MAP,
+        COMPOUND_COLOR_MAP,
+        COMPOUND_DISPLAY_MAP,
+    )
     from f1m.modeling import adjust_lap_time_for_conditions, fit_degradation_model
-    from f1m.planner import enumerate_plans, live_pit_recommendation
+    from f1m.planner import (
+        enumerate_plans,
+        live_pit_recommendation,
+        plan_aware_recommendation,
+    )
     from f1m.telemetry import (
         COL_COMPOUND,
         COL_LAP,
@@ -66,9 +80,23 @@ except ImportError:
     _project_root = Path(__file__).resolve().parents[1]
     if str(_project_root) not in sys.path:
         sys.path.insert(0, str(_project_root))
-    from f1m.common import collect_practice_data
+    from f1m.common import (
+        canonical_compound,
+        collect_practice_data,
+        compound_color,
+        display_compound,
+    )
+    from f1m.constants import (
+        COMPOUND_CANONICAL_MAP,
+        COMPOUND_COLOR_MAP,
+        COMPOUND_DISPLAY_MAP,
+    )
     from f1m.modeling import adjust_lap_time_for_conditions, fit_degradation_model
-    from f1m.planner import enumerate_plans, live_pit_recommendation
+    from f1m.planner import (
+        enumerate_plans,
+        live_pit_recommendation,
+        plan_aware_recommendation,
+    )
     from f1m.telemetry import (
         COL_COMPOUND,
         COL_LAP,
@@ -103,6 +131,7 @@ __all__ = [
     "fit_degradation_model",
     "enumerate_plans",
     "live_pit_recommendation",
+    "plan_aware_recommendation",
     "COL_COMPOUND",
     "COL_LAP",
     "COL_LAP_TIME",
@@ -115,4 +144,10 @@ __all__ = [
     "detect_pit_events",
     "fia_compliance_check",
     "load_session_csv",
+    "display_compound",
+    "canonical_compound",
+    "compound_color",
+    "COMPOUND_CANONICAL_MAP",
+    "COMPOUND_COLOR_MAP",
+    "COMPOUND_DISPLAY_MAP",
 ]

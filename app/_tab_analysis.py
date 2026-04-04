@@ -38,8 +38,22 @@ def render_metrics_tab(lap_summary: pd.DataFrame, models: dict) -> None:
             if len(params) >= 2 and compound in lap_summary["compound"].values:
                 compound_data = lap_summary[lap_summary["compound"] == compound]
                 if not compound_data.empty and "tire_age" in compound_data.columns:
-                    intercept, slope = params[0], params[1]
-                    predictions = intercept + slope * compound_data["tire_age"]
+                    if len(params) == 4:
+                        a, b_age, c_fuel, d_temp = params
+                        fuel_s = compound_data["fuel"] if "fuel" in compound_data.columns else pd.Series(0.0, index=compound_data.index)
+                        temp_s = compound_data["trackTemp"] if "trackTemp" in compound_data.columns else pd.Series(40.0, index=compound_data.index)
+                        predictions = (
+                            a
+                            + b_age * compound_data["tire_age"]
+                            + c_fuel * fuel_s.fillna(0.0)
+                            + d_temp * temp_s.fillna(40.0)
+                        )
+                    elif len(params) == 3:
+                        a, b_age, c_fuel = params
+                        fuel_s = compound_data["fuel"] if "fuel" in compound_data.columns else pd.Series(0.0, index=compound_data.index)
+                        predictions = a + b_age * compound_data["tire_age"] + c_fuel * fuel_s.fillna(0.0)
+                    else:
+                        predictions = params[0] + params[1] * compound_data["tire_age"]
                     residuals = compound_data["lap_time_s"] - predictions
                     fig_resid.add_trace(
                         go.Scatter(

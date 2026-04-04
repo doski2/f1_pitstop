@@ -1,6 +1,12 @@
 # f1m package: utilidades de telemetría, modelado y planificación
 
-from .common import PRACTICE_SESSION_NAMES, collect_practice_data
+from .common import (
+    PRACTICE_SESSION_NAMES,
+    canonical_compound,
+    collect_practice_data,
+    compound_color,
+    display_compound,
+)
 from .imports import (
     Dict,
     List,
@@ -17,7 +23,7 @@ from .modeling import (
     max_stint_length,
     stint_time,
 )
-from .planner import enumerate_plans, live_pit_recommendation
+from .planner import enumerate_plans, live_pit_recommendation, plan_aware_recommendation
 from .telemetry import (
     Stint,
     build_lap_summary,

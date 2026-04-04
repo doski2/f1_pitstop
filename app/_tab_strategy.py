@@ -1,4 +1,11 @@
-"""Render function for the Strategy tab."""
+"""Render function for the Strategy tab.
+
+Two-phase design:
+  A. Modelo        — build degradation model from FP1+FP2+FP3 (+ live race laps)
+  B. Parámetros    — manual inputs: track temp, pit loss, stops (2/3), fuel (auto)
+  C. Estrategias   — calculate top plans, user picks one → stored in session_state
+  D. Seguimiento   — live state vs chosen plan (race session only)
+"""
 
 from __future__ import annotations
 
@@ -7,27 +14,65 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from _data import (
+    fit_combined_model,
     fit_degradation_models,
     generate_race_plans,
     load_practice_data,
     load_precomputed_model,
     save_model_json,
 )
-from _imports import COL_LAP, COL_LAP_TIME, live_pit_recommendation
+from _imports import (
+    COL_LAP,
+    COL_LAP_TIME,
+    canonical_compound,
+    display_compound,
+    plan_aware_recommendation,
+)
 
+# Vueltas por circuito — se usa como valor por defecto editable por el usuario
 TRACK_LAPS: dict[str, int] = {
+    "Albert Park": 58,
     "Bahrain": 57,
-    "Monaco": 78,
-    "Monza": 53,
-    "Spa": 44,
-    "Silverstone": 52,
+    "Shanghai": 56,
+    "Baku": 51,
     "Barcelona": 66,
+    "Monaco": 78,
+    "Montreal": 70,
+    "Paul Ricard": 53,
+    "Red Bull Ring": 71,
+    "Silverstone": 52,
+    "Jeddah": 50,
+    "Hungaroring": 70,
+    "Spa-Francorchamps": 44,
+    "Monza": 53,
+    "Marina Bay": 62,
+    "Sochi": 53,
     "Suzuka": 53,
-    "Canada": 70,
-    "Brazil": 71,
-    "Abu Dhabi": 58,
-    "SaudiArabia": 50,
+    "Hermanos Rodriguez": 71,
+    "Circuit of the Americas": 56,
+    "Interlagos": 71,
+    "Yas Marina": 58,
+    "Miami": 57,
+    "Zandvoort": 72,
+    "Imola": 63,
+    "Las Vegas": 50,
+    "Qatar": 57,
 }
+
+# Stint mínimo fijo — no visible al usuario, evita stints de 1-2 vueltas sin sentido
+_MIN_STINT_FIXED = 3
+
+
+def _infer_fuel_cons(df: pd.DataFrame) -> tuple[float, float]:
+    """Auto-infer starting fuel (kg) and consumption per lap (kg/v) from telemetry."""
+    if "fuel" not in df.columns or df["fuel"].isna().all():
+        return 100.0, 1.4
+    valid = df["fuel"].dropna()
+    start_fuel = float(valid.max())
+    diffs = pd.to_numeric((-valid.sort_index().diff()).dropna(), errors="coerce").dropna()
+    plausible = diffs[(diffs > 0.05) & (diffs < 5.0)]
+    cons = float(plausible.median()) if len(plausible) >= 3 else 1.4
+    return start_fuel, cons
 
 
 def render_strategy_tab(
@@ -40,287 +85,370 @@ def render_strategy_tab(
     app_version: str,
 ) -> dict:
     """Renderiza el tab de Estrategia. Devuelve el dict de modelos ajustados."""
-    st.markdown("### Planificación de Estrategia (Combustible y Degradación)")
     is_race = "race" in session.lower()
+    has_race_data = is_race and not lap_summary.empty
     models: dict = {}
 
-    practice_data = load_practice_data(data_root, track, driver)
-    fallback_used = False
-    if practice_data.empty and is_race and not lap_summary.empty:
-        if st.checkbox(
-            "Sin prácticas. Usar vueltas iniciales de carrera como estimación provisoria",
-            key="fallback_race_sample",
-        ):
-            initial = lap_summary[lap_summary[COL_LAP_TIME].notna()].nsmallest(
-                12, COL_LAP
-            )
-            cols_base = ["compound", "tire_age", "lap_time_s"]
-            if "fuel" in initial.columns:
-                cols_base.append("fuel")
-            practice_data = initial[cols_base].copy()
-            practice_data["session"] = "RaceSample"
-            fallback_used = True
+    # ── A. MODELO ──────────────────────────────────────────────────────────
+    st.subheader("A · Modelo de degradación")
 
-    if practice_data.empty:
-        st.info("No hay datos suficientes para modelar.")
+    # Carga de prácticas FP1/FP2/FP3 siempre
+    practice_data = load_practice_data(data_root, track, driver)
+
+    # En carrera: extraer vueltas de carrera para blend con prácticas
+    race_laps_extra: pd.DataFrame | None = None
+    if has_race_data:
+        _race_cols = [
+            c
+            for c in [
+                "compound", "tire_age", "lap_time_s", "fuel", "trackTemp",
+                "pit_stop", "safety_car", "rain", "session",
+            ]
+            if c in lap_summary.columns
+        ]
+        race_laps_extra = lap_summary[_race_cols].copy()
+        if "session" not in race_laps_extra.columns:
+            race_laps_extra["session"] = "Race"
+        st.caption(
+            f"Carrera activa — {len(race_laps_extra)} filas de carrera "
+            "se usan como datos primarios (2× peso en el modelo)."
+        )
+
+    # Dataset combinado: prácticas base + vueltas de carrera con 2× peso
+    combined_data = fit_combined_model(practice_data, race_laps_extra)
+    if combined_data.empty:
+        st.info("Sin datos de entrenamiento libre ni de carrera para modelar.")
         return models
 
-    col_f1, col_f2, col_f3, col_f4 = st.columns([1, 1, 1, 1])
-    use_fuel = col_f1.checkbox("Usar combustible", value=True, key="use_fuel")
-
-    # Auto-cálculo combustible inicial
-    if "auto_start_fuel" not in st.session_state:
-        st.session_state["auto_start_fuel"] = None
-    if (
-        col_f2.button("Auto inicial", help="Detectar combustible inicial desde datos", key="auto_fuel_btn")
-        and use_fuel
-        and "fuel" in practice_data.columns
-    ):
-        valid_fuel = practice_data["fuel"].dropna()
-        if len(valid_fuel) >= 3:
-            calc_val = float(valid_fuel.max())
-            st.session_state["auto_start_fuel"] = calc_val
-            st.session_state["start_fuel_input"] = calc_val
-
-    default_start_fuel = (
-        st.session_state["auto_start_fuel"]
-        if st.session_state.get("auto_start_fuel") is not None
-        else (
-            float(practice_data["fuel"].max())
-            if use_fuel
-            and "fuel" in practice_data.columns
-            and practice_data["fuel"].notna().any()
-            else 100.0
-        )
+    # Fuente del modelo
+    use_pre = st.checkbox(
+        "Usar modelo guardado (si existe)",
+        value=True,
+        key="use_pre",
+        help="Si no hay datos de carrera activos, el modelo guardado se usa directamente.",
     )
-    start_fuel = col_f2.number_input(
-        "Combustible inicial (kg)",
-        value=default_start_fuel,
-        min_value=0.0,
-        key="start_fuel_input",
-    )
-
-    # Auto-cálculo consumo
-    if "cons_per_lap_override" not in st.session_state:
-        st.session_state["cons_per_lap_override"] = None
-    if (
-        col_f4.button(
-            "Auto consumo",
-            help="Estimar consumo medio por vuelta usando diferencias de fuel",
-            key="auto_cons_btn",
-        )
-        and use_fuel
-        and "fuel" in practice_data.columns
-    ):
-        fuel_series = practice_data["fuel"].dropna().sort_index()
-        if len(fuel_series) >= 5:
-            diffs: pd.Series = (
-                pd.to_numeric((-fuel_series.diff()).dropna(), errors="coerce")
-                .dropna()
-                .astype(float)
-            )
-            plausible = diffs[(diffs > 0) & (diffs < 5)]
-            if len(plausible) >= 3:
-                calc_cons = float(plausible.median())
-                st.session_state["cons_per_lap_override"] = calc_cons
-                st.session_state["cons_input"] = calc_cons
-            else:
-                st.warning(
-                    "Insuficientes diferencias plausibles de fuel para estimar consumo; usando valor base."
-                )
-
-    base_cons = 1.4
-    if (
-        use_fuel
-        and "fuel" in practice_data.columns
-        and practice_data["fuel"].notna().sum() > 3
-    ):
-        base_cons = float(practice_data["fuel"].diff().abs().median()) or base_cons
-    if st.session_state.get("cons_per_lap_override") is not None:
-        base_cons = st.session_state["cons_per_lap_override"]
-    cons_per_lap = col_f3.number_input(
-        "Consumo por vuelta (kg)",
-        value=base_cons,
-        min_value=0.0,
-        format="%.3f",
-        key="cons_input",
-    )
-    if use_fuel and st.session_state.get("cons_per_lap_override") is not None:
-        st.caption(
-            f"Consumo auto-estimado: {st.session_state['cons_per_lap_override']:.3f} kg/v"
-        )
-
-    use_pre = st.checkbox("Usar modelo precomputado (si existe)", value=True, key="use_pre")
-    pre_models: dict = {}
-    pre_meta: dict = {}
+    pre_models, pre_meta = {}, {}
     if use_pre:
         pre_models, pre_meta = load_precomputed_model(models_root, track, driver)
         if pre_models:
             st.caption(
-                f"Modelo precomputado cargado (fuel_used={pre_meta.get('fuel_used')})"
+                f"Modelo guardado: fuel={pre_meta.get('fuel_used')}, "
+                f"temp={pre_meta.get('temp_used', False)}, "
+                f"sesiones={pre_meta.get('sessions_included', [])}"
             )
 
-    models = pre_models if pre_models else fit_degradation_models(practice_data)
+    # Con datos de carrera activos siempre reajustamos para capturar ritmo real
+    if pre_models and not has_race_data:
+        models = pre_models
+    else:
+        models = fit_degradation_models(combined_data)
 
     if not models:
-        st.warning("Modelos no generados (datos insuficientes).")
+        st.warning("Datos insuficientes para generar modelos de degradación.")
         return models
 
-    if fallback_used:
-        st.warning("Modelo generado con vueltas de carrera (provisional).")
+    with st.expander("Ver coeficientes del modelo", expanded=False):
+        model_rows = []
+        for comp, coeffs in models.items():
+            row: dict = {
+                "Compuesto": display_compound(comp),
+                "a (base s)": round(coeffs[0], 3),
+                "b_age (s/v)": round(coeffs[1], 4),
+            }
+            if len(coeffs) >= 3:
+                row["c_fuel"] = round(coeffs[2], 4) if coeffs[2] != 0.0 else "—"
+            if len(coeffs) == 4:
+                row["d_temp"] = round(coeffs[3], 5)
+            # sessions contributing
+            if "session" in combined_data.columns:
+                sessions_list = sorted(combined_data["session"].unique().tolist())
+                row["Sesiones"] = ", ".join(str(s) for s in sessions_list)
+            model_rows.append(row)
+        st.dataframe(pd.DataFrame(model_rows), use_container_width=True)
 
-    model_rows = []
-    for comp, coeffs in models.items():
-        if len(coeffs) == 3:
-            a, b_age, c_fuel = coeffs
-            model_rows.append(
-                {
-                    "Compuesto": comp,
-                    "a": round(a, 3),
-                    "b_age": round(b_age, 4),
-                    "c_fuel": round(c_fuel, 4),
-                }
-            )
-        else:
-            a, b_age = coeffs
-            model_rows.append(
-                {"Compuesto": comp, "a": round(a, 3), "b_age": round(b_age, 4), "c_fuel": None}
-            )
-    st.dataframe(pd.DataFrame(model_rows), use_container_width=True)
-
-    col_sv1, _ = st.columns([1, 3])
-    if col_sv1.button("Guardar modelo", key="save_model_btn"):
+    col_sv, _ = st.columns([1, 4])
+    if col_sv.button("Guardar modelo", key="save_model_btn"):
         sessions_used = (
-            sorted(practice_data["session"].unique())
-            if "session" in practice_data.columns
+            sorted(combined_data["session"].unique().tolist())
+            if "session" in combined_data.columns
             else []
         )
-        fuel_used = any(len(v) == 3 for v in models.values())
+        fuel_used = any(
+            (len(v) == 3) or (len(v) == 4 and v[2] != 0.0) for v in models.values()
+        )
+        temp_used = any(len(v) == 4 for v in models.values())
         save_model_json(
-            models_root, track, driver, models, sessions_used, fuel_used, app_version
+            models_root, track, driver, models,
+            sessions_used, fuel_used, app_version, temp_used,
         )
 
-    total_race_laps_real = TRACK_LAPS.get(track, 57)
-    completed_laps = int(lap_summary[COL_LAP].max()) if not lap_summary.empty else 0
+    # ── B. PARÁMETROS DE CARRERA ───────────────────────────────────────────
+    st.subheader("B · Parámetros de carrera")
 
-    col_rl1, col_rl2 = st.columns([1, 2])
-    use_completed = col_rl1.checkbox(
-        "Usar vueltas completadas",
-        value=is_race,
-        help="Si activo, la estrategia usa sólo las vueltas ya registradas.",
-        key="use_completed",
+    col_b1, col_b2, col_b3 = st.columns(3)
+
+    # Temperatura de pista (manual — el usuario la introduce)
+    _avg_temp = (
+        float(practice_data["trackTemp"].mean())
+        if "trackTemp" in practice_data.columns
+        and practice_data["trackTemp"].notna().any()
+        else 40.0
     )
-    if use_completed:
-        race_laps_horizon = max(completed_laps, 1)
-        col_rl2.markdown(f"**Vueltas para cálculo:** {race_laps_horizon} (parcial)")
+    use_temp_model = any(len(v) == 4 for v in models.values())
+    race_temp = 0.0
+    if use_temp_model:
+        race_temp = col_b1.number_input(
+            "Temperatura pista (°C)",
+            value=_avg_temp,
+            min_value=10.0,
+            max_value=80.0,
+            step=1.0,
+            key="race_temp_input",
+        )
+        col_b1.caption(f"Media prácticas: {_avg_temp:.0f} °C")
     else:
-        min_laps = completed_laps if completed_laps > 0 else 10
-        race_laps_horizon = col_rl2.number_input(
-            "Vueltas totales carrera",
-            value=max(total_race_laps_real, min_laps),
-            min_value=min_laps,
-            max_value=110,
-            key="race_laps_input",
-        )
-        if race_laps_horizon < completed_laps:
-            st.warning(
-                "El total indicado es menor que vueltas ya completadas; se usará número de vueltas completadas."
-            )
-            race_laps_horizon = completed_laps
+        col_b1.metric("Temp. media prácticas", f"{_avg_temp:.0f} °C")
 
-    pit_loss = st.number_input(
-        "Pérdida pit stop (s)", value=22.0, min_value=5.0, max_value=60.0, step=0.5, key="pit_loss"
+    # Pérdida pit stop (manual)
+    pit_loss = col_b2.number_input(
+        "Pérdida pit stop (s)",
+        value=22.0,
+        min_value=5.0,
+        max_value=60.0,
+        step=0.5,
+        key="pit_loss",
     )
-    max_stops = st.slider("Paradas máximas", 0, 4, 2, key="max_stops")
-    min_stint = st.slider("Stint mínimo (vueltas)", 3, 20, 5, key="min_stint")
-    require_two = st.checkbox("Requerir dos compuestos (seco)", value=True, key="require_two")
 
-    if st.button("Calcular Estrategias", key="calc_strategies"):
+    # Paradas: 1 o 2 paradas EN CARRERA (elección de ruedas de salida no cuenta)
+    max_stops: int = col_b3.radio(  # type: ignore[assignment]
+        "Paradas en carrera",
+        options=[1, 2],
+        format_func=lambda n: f"{n} parada" if n == 1 else f"{n} paradas",
+        index=1,
+        horizontal=True,
+        key="max_stops",
+        help="Paradas durante la carrera. La elección de neumáticos de salida no cuenta.",
+    )
+
+    # Combustible — auto-detectado de carrera si disponible, si no de prácticas
+    _fuel_source = (
+        race_laps_extra
+        if race_laps_extra is not None and not race_laps_extra.empty
+        else practice_data
+    )
+    _auto_fuel, _auto_cons = _infer_fuel_cons(_fuel_source)
+    use_fuel = (
+        "fuel" in combined_data.columns
+        and combined_data["fuel"].notna().sum() >= 3
+    )
+
+    col_c1, col_c2 = st.columns(2)
+    start_fuel = col_c1.number_input(
+        "Combustible inicial (kg)",
+        value=_auto_fuel,
+        min_value=0.0,
+        key="start_fuel_input",
+        help="Auto-detectado del valor máximo de fuel registrado.",
+        disabled=not use_fuel,
+    )
+    cons_per_lap = col_c2.number_input(
+        "Consumo por vuelta (kg)",
+        value=round(_auto_cons, 3),
+        min_value=0.0,
+        format="%.3f",
+        key="cons_input",
+        help="Auto-estimado de la mediana de diferencias de fuel.",
+        disabled=not use_fuel,
+    )
+    if not use_fuel:
+        st.caption("Sin datos de combustible — planificación por degradación pura.")
+
+    # Lluvia — auto-detectada, editable
+    _rain_detected = False
+    for _df in [practice_data, lap_summary]:
+        if not _df.empty and "rain" in _df.columns:
+            if bool(_df["rain"].fillna(False).any()):
+                _rain_detected = True
+                break
+    is_wet = st.checkbox(
+        "Carrera en condiciones de lluvia (sin obligación de 2 compuestos)",
+        value=_rain_detected,
+        key="is_wet",
+    )
+    require_two = not is_wet
+
+    # Vueltas totales
+    total_race_laps: int = st.number_input(  # type: ignore[assignment]
+        "Vueltas totales de carrera",
+        value=TRACK_LAPS.get(track, 57),
+        min_value=5,
+        max_value=115,
+        key="race_laps_input",
+    )
+
+    # ── C. ESTRATEGIAS ────────────────────────────────────────────────────
+    st.subheader("C · Estrategias calculadas")
+
+    if st.button("Calcular estrategias", key="calc_strategies"):
         plans = generate_race_plans(
-            race_laps_horizon,
+            int(total_race_laps),
             list(models.keys()),
             models,
-            practice_data,
-            pit_loss,
-            max_stops=max_stops,
-            min_stint=min_stint,
+            combined_data,
+            float(pit_loss),
+            max_stops=int(max_stops),
+            exact_stops=True,
+            min_stint=_MIN_STINT_FIXED,
             require_two_compounds=require_two,
             use_fuel=use_fuel,
-            start_fuel=start_fuel,
-            cons_per_lap=cons_per_lap,
+            start_fuel=float(start_fuel),
+            cons_per_lap=float(cons_per_lap),
+            race_temp=float(race_temp),
         )
-        if not plans:
-            st.warning("No se generaron planes.")
-        else:
-            for i, p in enumerate(plans, 1):
-                st.markdown(
-                    f"**Plan {i}** Tiempo total: {p['total_time']:.2f}s | Paradas: {p['stops']}"
-                )
-                stint_rows = []
-                acc = 0
-                for idx_s, s in enumerate(p["stints"], 1):
-                    start_l = acc + 1
-                    end_l = acc + s["laps"]
-                    acc = end_l
-                    stint_rows.append(
-                        {
-                            "#": idx_s,
-                            "Compuesto": s["compound"],
-                            "Vueltas": s["laps"],
-                            "Rango": f"{start_l}-{end_l}",
-                            "Tiempo Est. (s)": round(s["pred_time"], 2),
-                        }
-                    )
-                st.dataframe(pd.DataFrame(stint_rows), use_container_width=True)
+        st.session_state["race_plans"] = plans
+        # Reset plan selection on new calculation
+        for _k in ("chosen_plan_radio", "chosen_plan", "race_params"):
+            st.session_state.pop(_k, None)
 
-    if is_race and not lap_summary.empty:
-        st.markdown("---")
-        st.subheader("Recomendación en Vivo")
-        if COL_LAP in lap_summary.columns:
-            current_lap = int(lap_summary[COL_LAP].max())
-            last_row = lap_summary[lap_summary[COL_LAP] == current_lap].tail(1)
-            comp_now = (
-                last_row["compound"].iloc[0]
-                if not last_row.empty and "compound" in last_row.columns
-                else None
-            )
-            age_now = (
-                int(last_row["tire_age"].iloc[0])
-                if not last_row.empty and "tire_age" in last_row.columns
-                else 0
-            )
-            current_fuel = (
-                float(last_row["fuel"].iloc[0])
-                if use_fuel and "fuel" in last_row.columns and not last_row.empty
-                else start_fuel
-            )
-            rec = (
-                live_pit_recommendation(
-                    current_lap,
-                    total_race_laps_real,
-                    str(comp_now),
-                    age_now,
-                    models,
-                    practice_data,
-                    pit_loss,
-                    use_fuel=use_fuel,
-                    current_fuel=current_fuel,
-                    cons_per_lap=cons_per_lap,
-                )
-                if comp_now
-                else None
-            )
-            if rec:
-                st.success(
-                    f"Parar en vuelta {rec['pit_on_lap']} (seguir {rec['continue_laps']}) "
-                    f"-> {rec['new_compound']} | "
-                    f"Tiempo restante: {rec['projected_total_remaining']:.1f}s"
-                )
-            else:
-                st.info("Sin recomendación disponible.")
-        else:
-            st.info("No hay datos de vuelta actual disponibles.")
+    plans: list = st.session_state.get("race_plans", [])
+
+    if not plans:
+        st.info("Pulsa **Calcular estrategias** para ver las opciones.")
     else:
-        st.info("No hay datos de telemetría disponibles para recomendaciones en vivo.")
+        # Build display labels
+        plan_labels: list[str] = []
+        for i, p in enumerate(plans, 1):
+            stint_parts = " → ".join(
+                f"{display_compound(s['compound'])} {s['laps']}v"
+                for s in p["stints"]
+            )
+            plan_labels.append(
+                f"Plan {i} | {p['total_time']:.0f}s | {p['stops']} parada(s) | {stint_parts}"
+            )
+
+        chosen_idx: int = st.radio(  # type: ignore[assignment]
+            "Elige la estrategia a seguir",
+            options=list(range(len(plans))),
+            format_func=lambda i: plan_labels[i],
+            key="chosen_plan_radio",
+        )
+
+        # Persist chosen plan and params
+        chosen_plan = plans[chosen_idx]
+        st.session_state["chosen_plan"] = chosen_plan
+        st.session_state["race_params"] = {
+            "total_race_laps": int(total_race_laps),
+            "pit_loss": float(pit_loss),
+            "use_fuel": use_fuel,
+            "start_fuel": float(start_fuel),
+            "cons_per_lap": float(cons_per_lap),
+            "race_temp": float(race_temp),
+        }
+
+        # Stint detail table
+        stint_rows = []
+        acc = 0
+        for idx_s, s in enumerate(chosen_plan["stints"], 1):
+            start_l = acc + 1
+            end_l = acc + s["laps"]
+            acc = end_l
+            stint_rows.append(
+                {
+                    "#": idx_s,
+                    "Compuesto": display_compound(s["compound"]),
+                    "Vueltas": s["laps"],
+                    "Rango": f"V{start_l}–V{end_l}",
+                    "Tiempo Est. (s)": round(s["pred_time"], 2),
+                }
+            )
+        st.dataframe(pd.DataFrame(stint_rows), use_container_width=True)
+
+    # ── D. SEGUIMIENTO EN VIVO ────────────────────────────────────────────
+    if has_race_data:
+        st.markdown("---")
+        st.subheader("D · Seguimiento en carrera")
+
+        chosen_plan_live = st.session_state.get("chosen_plan")
+        race_params = st.session_state.get("race_params", {})
+
+        # Estado actual del coche
+        current_lap = int(lap_summary[COL_LAP].max()) if COL_LAP in lap_summary.columns else 0
+        last_row = lap_summary[lap_summary[COL_LAP] == current_lap].tail(1)
+        comp_now = (
+            str(last_row["compound"].iloc[0])
+            if not last_row.empty and "compound" in last_row.columns
+            else None
+        )
+        age_now = (
+            int(last_row["tire_age"].iloc[0])
+            if not last_row.empty and "tire_age" in last_row.columns
+            else 0
+        )
+        current_fuel_live = (
+            float(last_row["fuel"].iloc[0])
+            if use_fuel and not last_row.empty and "fuel" in last_row.columns
+            else float(start_fuel)
+        )
+        total_laps_live = race_params.get("total_race_laps", int(total_race_laps))
+        rem = max(0, total_laps_live - current_lap)
+
+        col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+        col_d1.metric("Vuelta actual", current_lap)
+        col_d2.metric("Compuesto", display_compound(comp_now) if comp_now else "?")
+        col_d3.metric("Edad neumático", f"{age_now} v")
+        col_d4.metric("Vueltas restantes", rem)
+
+        if not chosen_plan_live:
+            st.info("Selecciona una estrategia en la sección C para activar el seguimiento.")
+        elif not comp_now:
+            st.info("Sin datos de compuesto actual en la telemetría.")
+        else:
+            rec = plan_aware_recommendation(
+                current_lap=current_lap,
+                total_race_laps=total_laps_live,
+                current_compound=comp_now,
+                current_tire_age=age_now,
+                models=models,
+                chosen_plan=chosen_plan_live["stints"],
+                practice_laps=combined_data,
+                pit_loss=race_params.get("pit_loss", float(pit_loss)),
+                window=5,
+                use_fuel=race_params.get("use_fuel", use_fuel),
+                current_fuel=current_fuel_live,
+                cons_per_lap=race_params.get("cons_per_lap", float(cons_per_lap)),
+                race_temp=race_params.get("race_temp", float(race_temp)),
+            )
+
+            if rec is None:
+                st.warning(
+                    f"Sin recomendación — '{display_compound(comp_now)}' no está en el modelo "
+                    "o carrera terminada."
+                )
+            elif rec["status"] == "finished":
+                st.success("Carrera completada.")
+            elif rec["status"] == "last_stint":
+                st.success(
+                    f"Último stint — sin más paradas planificadas. "
+                    f"Compuesto: **{display_compound(comp_now)}** · {rem} vueltas restantes."
+                )
+            elif rec["status"] == "on_plan":
+                st.success(
+                    f"En plan — parada prevista: **V{rec['planned_pit_lap']}** "
+                    f"→ {rec['next_compound']}"
+                )
+            elif rec["status"] == "pit_earlier":
+                delta = rec["planned_pit_lap"] - rec["recommended_pit_lap"]
+                st.warning(
+                    f"Ritmo más lento — parar **{delta} vuelta(s) antes**: "
+                    f"**V{rec['recommended_pit_lap']}** (plan: V{rec['planned_pit_lap']}) "
+                    f"→ {rec['next_compound']} · Ganancia: **{rec['time_saving']:.1f}s**"
+                )
+            elif rec["status"] == "pit_later":
+                delta = rec["recommended_pit_lap"] - rec["planned_pit_lap"]
+                st.info(
+                    f"Ritmo mejor — aguantar **{delta} vuelta(s) más**: "
+                    f"**V{rec['recommended_pit_lap']}** (plan: V{rec['planned_pit_lap']}) "
+                    f"→ {rec['next_compound']} · Beneficio: **{rec['time_saving']:.1f}s**"
+                )
 
     return models
