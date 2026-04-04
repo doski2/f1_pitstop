@@ -168,10 +168,6 @@ def enumerate_plans(
                     new_stints = [(comp, laps)] + sub_stints
                     results.append((new_stints, total_time, final_fuel))
 
-        # Keep only top results to limit memory usage
-        results.sort(key=lambda x: x[1])  # Sort by total time
-        results = results[: top_k * 2]  # Keep more than needed for combination
-
         _plan_cache[cache_key] = results
         return results
 

@@ -49,6 +49,8 @@ SESSION_COL_MAP = {
     "weather": "weather",
     "safety_car": "safety_car",
     "rain": "rain",
+    "pace_mode": "paceMode",
+    "rubber": "rubber",
 }
 
 # Common column names used throughout the application
@@ -61,6 +63,9 @@ COL_SESSION = "session"
 COL_FUEL = "fuel"
 COL_SOURCE_FILE = "source_file"
 COL_SAFETY_CAR = "safety_car"
+COL_PACE_MODE = "paceMode"
+COL_RUBBER = "rubber"
+COL_AVG_WEAR = "avg_wear"
 COL_RAIN = "rain"
 
 # Directory and file path constants
@@ -253,6 +258,12 @@ def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
         tire_change_by_lap = pit_by_lap
 
     lap_last = ordered.groupby(lap_col).tail(1).copy()
+
+    # Compute avg_wear from per-tire wear columns (end-of-lap snapshot via tail(1))
+    _wear_raw = [c for c in ["flDeg", "frDeg", "rlDeg", "rrDeg"] if c in lap_last.columns]
+    if _wear_raw:
+        lap_last[COL_AVG_WEAR] = lap_last[_wear_raw].mean(axis=1)
+
     lap_last["pit_stop"] = lap_last[lap_col].map(pit_by_lap).fillna(False)
     lap_last["tire_change_pit"] = lap_last[lap_col].map(tire_change_by_lap).fillna(False)
 
@@ -277,6 +288,10 @@ def build_lap_summary(df: pd.DataFrame) -> pd.DataFrame:
         "tire_change_pit",
         SESSION_COL_MAP["safety_car"],
         SESSION_COL_MAP["rain"],
+        SESSION_COL_MAP["pace_mode"],
+        SESSION_COL_MAP["rubber"],
+        COL_AVG_WEAR,
+        "fuelDelta",
     ]
 
     existing = [c for c in cols if c in lap_last.columns]

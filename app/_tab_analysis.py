@@ -22,7 +22,7 @@ def render_metrics_tab(lap_summary: pd.DataFrame, models: dict) -> None:
     metrics_df = pd.DataFrame.from_dict(model_metrics, orient="index")
     metrics_df = metrics_df.round(4)
     metrics_df.columns = ["MAE (s)", "R²", "Muestras"]
-    st.dataframe(metrics_df, use_container_width=True)
+    st.dataframe(metrics_df, width='stretch')
 
     st.markdown(
         "**Interpretación:**\n"
@@ -72,7 +72,7 @@ def render_metrics_tab(lap_summary: pd.DataFrame, models: dict) -> None:
             yaxis_title="Residuo (segundos)",
             showlegend=True,
         )
-        st.plotly_chart(fig_resid, use_container_width=True)
+        st.plotly_chart(fig_resid, width='stretch')
 
 
 def render_histogram_tab(lap_summary: pd.DataFrame) -> None:
@@ -93,7 +93,7 @@ def render_histogram_tab(lap_summary: pd.DataFrame) -> None:
         labels={"lap_time_s": "Tiempo de Vuelta (s)"},
     )
     fig_hist.update_layout(showlegend=False)
-    st.plotly_chart(fig_hist, use_container_width=True)
+    st.plotly_chart(fig_hist, width='stretch')
 
     st.markdown("### Estadísticas Descriptivas")
     stats = lap_summary["lap_time_s"].describe()
@@ -103,7 +103,7 @@ def render_histogram_tab(lap_summary: pd.DataFrame) -> None:
             "Valor": [round(float(val), 3) for val in stats.values],
         }
     )
-    st.dataframe(stats_df, use_container_width=True)
+    st.dataframe(stats_df, width='stretch')
 
     if "compound" in lap_summary.columns:
         st.markdown("### Por Compuesto")
@@ -116,7 +116,7 @@ def render_histogram_tab(lap_summary: pd.DataFrame) -> None:
             labels={"lap_time_s": "Tiempo de Vuelta (s)"},
             opacity=0.7,
         )
-        st.plotly_chart(fig_hist_comp, use_container_width=True)
+        st.plotly_chart(fig_hist_comp, width='stretch')
 
 
 def render_consistency_tab(lap_summary: pd.DataFrame) -> None:
@@ -131,7 +131,7 @@ def render_consistency_tab(lap_summary: pd.DataFrame) -> None:
     consistency_df = pd.DataFrame.from_dict(consistency_metrics, orient="index")
     consistency_df = consistency_df.round(4)
     consistency_df.columns = ["Desv. Estándar (s)", "Media (s)", "CV (%)", "Muestras"]
-    st.dataframe(consistency_df, use_container_width=True)
+    st.dataframe(consistency_df, width='stretch')
 
     st.markdown(
         "**Interpretación:**\n"
@@ -167,7 +167,7 @@ def render_consistency_tab(lap_summary: pd.DataFrame) -> None:
         line_color="red",
         annotation_text="Buena consistencia (< 2%)",
     )
-    st.plotly_chart(fig_c, use_container_width=True)
+    st.plotly_chart(fig_c, width='stretch')
 
 
 def render_compounds_tab(lap_summary: pd.DataFrame) -> None:
@@ -191,7 +191,7 @@ def render_compounds_tab(lap_summary: pd.DataFrame) -> None:
             "lap_time_s_max": "Peor (s)",
         }
     )
-    st.dataframe(compound_stats, use_container_width=True)
+    st.dataframe(compound_stats, width='stretch')
 
     if not _PLOTLY_AVAILABLE or px is None:
         st.info("Plotly no disponible para gráficos comparativos.")
@@ -204,7 +204,7 @@ def render_compounds_tab(lap_summary: pd.DataFrame) -> None:
         title="Distribución de Tiempos por Compuesto",
         labels={"lap_time_s": "Tiempo de Vuelta (s)", "compound": "Compuesto"},
     )
-    st.plotly_chart(fig_comp, use_container_width=True)
+    st.plotly_chart(fig_comp, width='stretch')
 
     if "tire_age" in lap_summary.columns:
         avg_by_age = (
@@ -225,4 +225,4 @@ def render_compounds_tab(lap_summary: pd.DataFrame) -> None:
                 "compound": "Compuesto",
             },
         )
-        st.plotly_chart(fig_evol, use_container_width=True)
+        st.plotly_chart(fig_evol, width='stretch')

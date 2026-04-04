@@ -69,6 +69,14 @@ def _infer_fuel_cons(df: pd.DataFrame) -> tuple[float, float]:
         return 100.0, 1.4
     valid = df["fuel"].dropna()
     start_fuel = float(valid.max())
+    # Prefer fuelDelta when available — direct per-lap reading from the game.
+    # Guard with a plausible range (0.3–5.0 kg/lap) to reject per-sample noise.
+    if "fuelDelta" in df.columns:
+        delta_vals = pd.to_numeric(df["fuelDelta"], errors="coerce").abs().dropna()
+        plausible_delta = delta_vals[(delta_vals > 0.3) & (delta_vals < 5.0)]
+        if len(plausible_delta) >= 3:
+            return start_fuel, float(plausible_delta.median())
+    # Fallback: derive consumption from differences in fuel level
     diffs = pd.to_numeric((-valid.sort_index().diff()).dropna(), errors="coerce").dropna()
     plausible = diffs[(diffs > 0.05) & (diffs < 5.0)]
     cons = float(plausible.median()) if len(plausible) >= 3 else 1.4
@@ -93,7 +101,14 @@ def render_strategy_tab(
     st.subheader("A · Modelo de degradación")
 
     # Carga de prácticas FP1/FP2/FP3 siempre
-    practice_data = load_practice_data(data_root, track, driver)
+    # _data_version = max mtime de los parquets curados → invalida caché cuando se re-cura
+    from pathlib import Path as _Path
+    _curated_root = _Path("curated") / f"track={track}"
+    _data_version = max(
+        (p.stat().st_mtime for p in _curated_root.rglob("laps.parquet") if p.exists()),
+        default=0.0,
+    )
+    practice_data = load_practice_data(data_root, track, driver, _data_version=_data_version)
 
     # En carrera: extraer vueltas de carrera para blend con prácticas
     race_laps_extra: pd.DataFrame | None = None
@@ -164,7 +179,7 @@ def render_strategy_tab(
                 sessions_list = sorted(combined_data["session"].unique().tolist())
                 row["Sesiones"] = ", ".join(str(s) for s in sessions_list)
             model_rows.append(row)
-        st.dataframe(pd.DataFrame(model_rows), use_container_width=True)
+        st.dataframe(pd.DataFrame(model_rows), width='stretch')
 
     col_sv, _ = st.columns([1, 4])
     if col_sv.button("Guardar modelo", key="save_model_btn"):
@@ -290,25 +305,35 @@ def render_strategy_tab(
     st.subheader("C · Estrategias calculadas")
 
     if st.button("Calcular estrategias", key="calc_strategies"):
-        plans = generate_race_plans(
-            int(total_race_laps),
-            list(models.keys()),
-            models,
-            combined_data,
-            float(pit_loss),
-            max_stops=int(max_stops),
-            exact_stops=True,
-            min_stint=_MIN_STINT_FIXED,
-            require_two_compounds=require_two,
-            use_fuel=use_fuel,
-            start_fuel=float(start_fuel),
-            cons_per_lap=float(cons_per_lap),
-            race_temp=float(race_temp),
-        )
-        st.session_state["race_plans"] = plans
-        # Reset plan selection on new calculation
-        for _k in ("chosen_plan_radio", "chosen_plan", "race_params"):
-            st.session_state.pop(_k, None)
+        try:
+            plans = generate_race_plans(
+                int(total_race_laps),
+                list(models.keys()),
+                models,
+                combined_data,
+                float(pit_loss),
+                max_stops=int(max_stops),
+                exact_stops=True,
+                min_stint=_MIN_STINT_FIXED,
+                require_two_compounds=require_two,
+                use_fuel=use_fuel,
+                start_fuel=float(start_fuel),
+                cons_per_lap=float(cons_per_lap),
+                race_temp=float(race_temp),
+            )
+            st.session_state["race_plans"] = plans
+            # Reset plan selection on new calculation
+            for _k in ("chosen_plan_radio", "chosen_plan", "race_params"):
+                st.session_state.pop(_k, None)
+            if not plans:
+                st.warning(
+                    f"No se encontraron planes con exactamente {max_stops} parada(s). "
+                    f"Compuestos disponibles: {list(models.keys())} | "
+                    f"Vueltas: {total_race_laps} | "
+                    f"2 compuestos requeridos: {require_two}"
+                )
+        except Exception as exc:
+            st.error(f"Error calculando estrategias: {type(exc).__name__}: {exc}")
 
     plans: list = st.session_state.get("race_plans", [])
 
@@ -361,7 +386,7 @@ def render_strategy_tab(
                     "Tiempo Est. (s)": round(s["pred_time"], 2),
                 }
             )
-        st.dataframe(pd.DataFrame(stint_rows), use_container_width=True)
+        st.dataframe(pd.DataFrame(stint_rows), width='stretch')
 
     # ── D. SEGUIMIENTO EN VIVO ────────────────────────────────────────────
     if has_race_data:

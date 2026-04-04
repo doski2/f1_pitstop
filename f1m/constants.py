@@ -115,3 +115,5 @@ COMPOUND_CANONICAL_MAP: dict[str, str] = {
 
 TEMP_REF_CELSIUS = 40.0  # reference track temp (°C) baked into the 4-param intercept
 MIN_TEMP_STD = 2.0  # minimum trackTemp std-dev (°C) to activate the temperature coefficient
+MIN_RUBBER_STD = 0.05  # minimum rubber std to activate rubber detrending in OLS
+WEAR_CLIFF = 85.0  # avg tire wear (%) at which grip drops sharply — used in max_stint_length

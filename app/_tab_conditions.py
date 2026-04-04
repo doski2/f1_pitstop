@@ -88,7 +88,7 @@ def render_conditions_tab(lap_summary: pd.DataFrame, models: dict) -> None:
                     "Con Lluvia (s)": round(rain_adjusted, 2),
                 }
             )
-        st.dataframe(pd.DataFrame(impact_data), use_container_width=True)
+        st.dataframe(pd.DataFrame(impact_data), width='stretch')
         st.info(
             "💡 Los modelos de degradación se ajustan automáticamente filtrando datos "
             "con condiciones especiales para mayor precisión."

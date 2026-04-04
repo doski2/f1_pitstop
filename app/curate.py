@@ -91,6 +91,10 @@ def per_lap_last_samples(df: pd.DataFrame) -> pd.DataFrame:
 def compute_features(laps: pd.DataFrame) -> pd.DataFrame:
     if laps.empty:
         return laps
+    # avg_wear: mean of per-tire wear columns
+    _wear_cols = [c for c in ["flDeg", "frDeg", "rlDeg", "rrDeg"] if c in laps.columns]
+    if _wear_cols:
+        laps["avg_wear"] = laps[_wear_cols].mean(axis=1)
     # Pace index relativo al mejor de la sesión (por track+sessionType)
     grp = laps.groupby(["trackName", "sessionType"], dropna=False)["lap_time_s"]
     # Best lap per session (typed for static analysis)

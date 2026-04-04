@@ -102,10 +102,11 @@ def load_precomputed_model(models_root: Path, track: str, driver: str):
 
 
 @st.cache_data(show_spinner=True)
-def load_practice_data(data_root: Path, track: str, driver: str) -> pd.DataFrame:
+def load_practice_data(data_root: Path, track: str, driver: str, _data_version: float = 0.0) -> pd.DataFrame:
     """Carga datos de práctica con caché inteligente.
 
-    La caché se invalida automáticamente cuando cambian los archivos de datos.
+    _data_version es el max mtime de los parquets curados para invalidar la
+    caché automáticamente cuando se re-cura sin reiniciar el servidor.
     """
     return collect_practice_data(data_root, track, driver)
 
@@ -116,7 +117,6 @@ def fit_degradation_models(practice_data: pd.DataFrame):
     return fit_degradation_model(practice_data)
 
 
-@st.cache_data(show_spinner=False)
 def generate_race_plans(
     race_laps: int,
     compounds: list,
@@ -132,7 +132,7 @@ def generate_race_plans(
     cons_per_lap: float = 0.0,
     race_temp: float = 0.0,
 ):
-    """Genera planes de carrera con caché para evitar recálculos costosos."""
+    """Genera planes de carrera. Sin caché — solo se llama al pulsar el botón."""
     return enumerate_plans(
         race_laps,
         compounds,

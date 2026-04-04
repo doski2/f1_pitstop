@@ -153,12 +153,12 @@ st.subheader("Resumen de Vueltas")
 if lap_summary.empty:
     st.info("Sin datos de vueltas.")
 else:
-    st.dataframe(lap_summary, use_container_width=True, height=300)
+    st.dataframe(lap_summary, width='stretch', height=300)
 
 st.subheader("Stints")
 if stints:
     stint_df = pd.DataFrame([s.__dict__ for s in stints])
-    st.dataframe(stint_df, use_container_width=True)
+    st.dataframe(stint_df, width='stretch')
 else:
     st.info("No se detectaron stints")
 
@@ -232,7 +232,7 @@ with tab_lap:
     ):
         fig = create_lap_times_chart(lap_summary)
         if fig is not None:
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
     else:
         st.info("No hay datos de tiempos de vuelta.")
 
@@ -254,7 +254,7 @@ with tab_ttemps:
             hover_data=[COL_LAP],
             title="Temperaturas de Neumáticos",
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width='stretch')
     else:
         st.info("No hay columnas de temperatura de rueda.")
 
@@ -267,7 +267,7 @@ with tab_trackair:
     ):
         fig3 = create_temperatures_chart(df)
         if fig3 is not None:
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width='stretch')
     else:
         st.info("No hay datos de temperatura de pista/aire.")
 
@@ -275,7 +275,7 @@ with tab_evol:
     if _PLOTLY_AVAILABLE and px is not None and not lap_summary.empty:
         fig4 = create_compound_evolution_chart(lap_summary)
         if fig4 is not None:
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(fig4, width='stretch')
     else:
         st.info("Sin datos para mostrar evolución de compuesto.")
 
@@ -304,13 +304,13 @@ with tab_wear:
             title="Desgaste Neumáticos (%)",
             markers=True,
         )
-        st.plotly_chart(figw, use_container_width=True)
+        st.plotly_chart(figw, width='stretch')
         if not lap_summary.empty:
             last_per_lap = df.sort_values("timestamp").groupby(COL_LAP).tail(1)
             cols_present = [c for c in wear_cols if c in last_per_lap.columns]
             st.dataframe(
                 last_per_lap[[COL_LAP] + cols_present],
-                use_container_width=True,
+                width='stretch',
                 height=300,
             )
     else:

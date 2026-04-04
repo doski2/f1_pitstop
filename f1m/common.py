@@ -79,7 +79,10 @@ def collect_practice_data(data_root: Path, track: str, driver: str) -> pd.DataFr
                 for driver_dir in session_dir.iterdir():
                     if not driver_dir.is_dir():
                         continue
-                    if driver in driver_dir.name:  # Match by driver name/number
+                    # Directory format is "driver=14_Fernando_Alonso" (underscores).
+                    # Normalise both sides to underscores before matching so
+                    # "Fernando Alonso" matches "driver=14_Fernando_Alonso".
+                    if driver.replace(" ", "_") in driver_dir.name:
                         parquet_file = driver_dir / "laps.parquet"
                         if parquet_file.exists():
                             try:
