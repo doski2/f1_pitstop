@@ -458,6 +458,7 @@ class F1Logger:
         self._session_ts:  Optional[str] = None              # timestamp de inicio
         self._track_name:  str = ""
         self._session_type: str = ""
+        self._last_time_elapsed: float = -1.0  # ultimo timeElapsed visto (detectar pausa)
 
         # Estado por slot de coche (índice 0-21)
         self._last_compound:   dict[int, int]   = {}   # slot → último compound ID
@@ -569,6 +570,7 @@ class F1Logger:
         self._driver_names = {}
         self._prev_dist    = {}
         self._speed_st     = {}
+        self._last_time_elapsed = -1.0
 
         self._assign_car_names(cars)
         self._load_tire_map()
@@ -1028,6 +1030,15 @@ class F1Logger:
                     time.sleep(self.interval)
                     continue
                 _zero_ticks = 0
+
+                # Detectar pausa del juego: si timeElapsed no ha avanzado, el
+                # juego está pausado y los datos son idénticos al frame anterior.
+                # Se salta la escritura para no inflar el CSV con filas congeladas.
+                current_te = session["timeElapsed"]
+                if current_te == self._last_time_elapsed:
+                    time.sleep(self.interval)
+                    continue
+                self._last_time_elapsed = current_te
 
                 for slot, car in enumerate(cars):
                     num = car["driverNumber"]

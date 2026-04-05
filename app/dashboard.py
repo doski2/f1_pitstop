@@ -17,7 +17,7 @@ from _charts import (
     create_lap_times_chart,
     create_temperatures_chart,
 )
-from _data import load_and_process
+from _data import load_and_process, load_and_process_dir
 from _imports import (
     _PLOTLY_AVAILABLE,
     COL_LAP,
@@ -104,13 +104,15 @@ if not csv_files:
     st.warning("No hay archivos CSV para este piloto.")
     st.stop()
 
-selected_csv: Optional[str] = st.sidebar.selectbox(
-    "Archivo Telemetría", [f.name for f in csv_files]
-)
-assert selected_csv is not None and isinstance(selected_csv, str)
-csv_path = driver_dir / selected_csv
+# Calcular mtime máximo del directorio para invalidar caché cuando llegue un nuevo archivo
+dir_mtime = max(f.stat().st_mtime for f in csv_files)
 
-file_mtime = csv_path.stat().st_mtime
+if len(csv_files) > 1:
+    st.sidebar.info(
+        f"📂 {len(csv_files)} archivos detectados — sesión unificada automáticamente."
+    )
+else:
+    st.sidebar.caption(f"📄 1 archivo: {csv_files[0].name}")
 
 col_refresh_a, col_refresh_b, _ = st.sidebar.columns([1, 1, 1])
 do_refresh = col_refresh_a.button("Refrescar")
@@ -127,9 +129,9 @@ def _auto_reloader():
 
 _auto_reloader()
 
-df, lap_summary, stints, compliance = load_and_process(csv_path, file_mtime)
+df, lap_summary, stints, compliance = load_and_process_dir(driver_dir, dir_mtime)
 st.sidebar.caption(
-    f"Modificado: {datetime.fromtimestamp(file_mtime).strftime('%H:%M:%S')}"
+    f"Datos hasta: {datetime.fromtimestamp(dir_mtime).strftime('%H:%M:%S')}"
 )
 
 # ---------- header metrics ----------

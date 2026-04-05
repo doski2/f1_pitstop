@@ -74,6 +74,7 @@ try:
         build_stints,
         detect_pit_events,
         fia_compliance_check,
+        load_multi_session_csvs,
         load_session_csv,
     )
 except ImportError:
@@ -109,6 +110,7 @@ except ImportError:
         build_stints,
         detect_pit_events,
         fia_compliance_check,
+        load_multi_session_csvs,
         load_session_csv,
     )
 
@@ -143,6 +145,7 @@ __all__ = [
     "build_stints",
     "detect_pit_events",
     "fia_compliance_check",
+    "load_multi_session_csvs",
     "load_session_csv",
     "display_compound",
     "canonical_compound",

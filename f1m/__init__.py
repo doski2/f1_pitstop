@@ -30,6 +30,7 @@ from .telemetry import (
     build_stints,
     detect_pit_events,
     fia_compliance_check,
+    load_multi_session_csvs,
     load_session_csv,
 )
 

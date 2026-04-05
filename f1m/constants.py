@@ -117,3 +117,23 @@ TEMP_REF_CELSIUS = 40.0  # reference track temp (°C) baked into the 4-param int
 MIN_TEMP_STD = 2.0  # minimum trackTemp std-dev (°C) to activate the temperature coefficient
 MIN_RUBBER_STD = 0.05  # minimum rubber std to activate rubber detrending in OLS
 WEAR_CLIFF = 85.0  # avg tire wear (%) at which grip drops sharply — used in max_stint_length
+
+# Wear-rate scaling factors: convert measured wear/lap from a given paceMode
+# to the equivalent Standard (race) rate. In Light/Conserve the driver manages
+# tires → lower wear → b_w is under-estimated → max stint is over-estimated.
+# Example: measured b_w in Light × 1.8 → estimated b_w at Standard pace.
+# Values obtained from F1 Manager community testing and cross-session comparisons.
+PACE_WEAR_SCALE: dict[str, float] = {
+    "Attack":    0.5,   # very aggressive — already faster wear than Standard
+    "Aggressive": 0.75,
+    "Standard":  1.0,   # reference
+    "Light":     1.8,   # tire management — ~55% of Standard wear observed
+    "Conserve":  2.5,   # extreme management
+}
+MIN_WEAR_RATE_PER_LAP = 0.001  # minimum measured b_w (fraction/lap) to use wear model
+
+# Bump this integer whenever fit_degradation_model algorithm changes significantly.
+# It is used as an extra cache-key dimension in fit_degradation_models() so that
+# Streamlit's @st.cache_data automatically invalidates stale model results when
+# the computation logic changes, without requiring a manual "Clear cache" action.
+MODEL_ALGORITHM_VERSION: int = 3

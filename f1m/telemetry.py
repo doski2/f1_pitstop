@@ -127,7 +127,7 @@ def load_session_csv(csv_path: Path) -> pd.DataFrame:
     - Sort by ``timestamp`` when ``currentLap`` exists.
     """
 
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path, low_memory=False)
     if "timestamp" in df.columns:
         df["timestamp"] = pd.to_datetime(df["timestamp"])
     if SESSION_COL_MAP["lap"] in df.columns and "timestamp" in df.columns:
@@ -135,6 +135,45 @@ def load_session_csv(csv_path: Path) -> pd.DataFrame:
     # Optimize memory usage
     df = optimize_dataframe_memory(df)
     return df
+
+
+def load_multi_session_csvs(driver_dir: Path) -> pd.DataFrame:
+    """Load and merge all CSV files from a driver session directory.
+
+    When a session spans more than one hour, the logger creates multiple files
+    (one per hour) with timestamp-prefixed names. This function:
+    - Discovers all ``.csv`` files in ``driver_dir``
+    - Sorts them by filename (the timestamp prefix ensures chronological order)
+    - Concatenates them into a single DataFrame
+    - Drops duplicate rows based on ``timestamp`` (keeps first occurrence)
+    - Re-sorts by ``timestamp``
+
+    Returns an empty DataFrame if no CSV files are found.
+    """
+    csv_files = sorted(driver_dir.glob("*.csv"))
+    if not csv_files:
+        return pd.DataFrame()
+    if len(csv_files) == 1:
+        return load_session_csv(csv_files[0])
+
+    frames: List[pd.DataFrame] = []
+    for csv_path in csv_files:
+        try:
+            frames.append(load_session_csv(csv_path))
+        except (FileNotFoundError, PermissionError, pd.errors.EmptyDataError,
+                pd.errors.ParserError, ValueError):
+            continue
+
+    if not frames:
+        return pd.DataFrame()
+
+    merged = pd.concat(frames, ignore_index=True)
+
+    if "timestamp" in merged.columns:
+        merged = merged.drop_duplicates(subset=["timestamp"], keep="first")
+        merged = merged.sort_values("timestamp").reset_index(drop=True)
+
+    return optimize_dataframe_memory(merged)
 
 
 def detect_pit_events(df: pd.DataFrame) -> pd.DataFrame:

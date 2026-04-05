@@ -23,11 +23,11 @@ from _data import (
 )
 from _imports import (
     COL_LAP,
-    COL_LAP_TIME,
-    canonical_compound,
     display_compound,
     plan_aware_recommendation,
 )
+
+from f1m.research import save_tire_research
 
 # Vueltas por circuito — se usa como valor por defecto editable por el usuario
 TRACK_LAPS: dict[str, int] = {
@@ -77,7 +77,9 @@ def _infer_fuel_cons(df: pd.DataFrame) -> tuple[float, float]:
         if len(plausible_delta) >= 3:
             return start_fuel, float(plausible_delta.median())
     # Fallback: derive consumption from differences in fuel level
-    diffs = pd.to_numeric((-valid.sort_index().diff()).dropna(), errors="coerce").dropna()
+    diffs = pd.to_numeric(
+        (-valid.sort_index().diff()).dropna(), errors="coerce"
+    ).dropna()
     plausible = diffs[(diffs > 0.05) & (diffs < 5.0)]
     cons = float(plausible.median()) if len(plausible) >= 3 else 1.4
     return start_fuel, cons
@@ -103,12 +105,15 @@ def render_strategy_tab(
     # Carga de prácticas FP1/FP2/FP3 siempre
     # _data_version = max mtime de los parquets curados → invalida caché cuando se re-cura
     from pathlib import Path as _Path
+
     _curated_root = _Path("curated") / f"track={track}"
     _data_version = max(
         (p.stat().st_mtime for p in _curated_root.rglob("laps.parquet") if p.exists()),
         default=0.0,
     )
-    practice_data = load_practice_data(data_root, track, driver, _data_version=_data_version)
+    practice_data = load_practice_data(
+        data_root, track, driver, _data_version=_data_version
+    )
 
     # En carrera: extraer vueltas de carrera para blend con prácticas
     race_laps_extra: pd.DataFrame | None = None
@@ -116,8 +121,15 @@ def render_strategy_tab(
         _race_cols = [
             c
             for c in [
-                "compound", "tire_age", "lap_time_s", "fuel", "trackTemp",
-                "pit_stop", "safety_car", "rain", "session",
+                "compound",
+                "tire_age",
+                "lap_time_s",
+                "fuel",
+                "trackTemp",
+                "pit_stop",
+                "safety_car",
+                "rain",
+                "session",
             ]
             if c in lap_summary.columns
         ]
@@ -179,7 +191,7 @@ def render_strategy_tab(
                 sessions_list = sorted(combined_data["session"].unique().tolist())
                 row["Sesiones"] = ", ".join(str(s) for s in sessions_list)
             model_rows.append(row)
-        st.dataframe(pd.DataFrame(model_rows), width='stretch')
+        st.dataframe(pd.DataFrame(model_rows), width="stretch")
 
     col_sv, _ = st.columns([1, 4])
     if col_sv.button("Guardar modelo", key="save_model_btn"):
@@ -193,8 +205,19 @@ def render_strategy_tab(
         )
         temp_used = any(len(v) == 4 for v in models.values())
         save_model_json(
-            models_root, track, driver, models,
-            sessions_used, fuel_used, app_version, temp_used,
+            models_root,
+            track,
+            driver,
+            models,
+            sessions_used,
+            fuel_used,
+            app_version,
+            temp_used,
+        )
+        research_root = Path("research")
+        save_tire_research(research_root, track, driver, combined_data, models)
+        st.info(
+            "Investigacion de neumaticos actualizada en research/tire_behavior.json"
         )
 
     # ── B. PARÁMETROS DE CARRERA ───────────────────────────────────────────
@@ -253,8 +276,7 @@ def render_strategy_tab(
     )
     _auto_fuel, _auto_cons = _infer_fuel_cons(_fuel_source)
     use_fuel = (
-        "fuel" in combined_data.columns
-        and combined_data["fuel"].notna().sum() >= 3
+        "fuel" in combined_data.columns and combined_data["fuel"].notna().sum() >= 3
     )
 
     col_c1, col_c2 = st.columns(2)
@@ -320,6 +342,8 @@ def render_strategy_tab(
                 start_fuel=float(start_fuel),
                 cons_per_lap=float(cons_per_lap),
                 race_temp=float(race_temp),
+                driver=driver,
+                research_root=Path("research"),
             )
             st.session_state["race_plans"] = plans
             # Reset plan selection on new calculation
@@ -344,8 +368,7 @@ def render_strategy_tab(
         plan_labels: list[str] = []
         for i, p in enumerate(plans, 1):
             stint_parts = " → ".join(
-                f"{display_compound(s['compound'])} {s['laps']}v"
-                for s in p["stints"]
+                f"{display_compound(s['compound'])} {s['laps']}v" for s in p["stints"]
             )
             plan_labels.append(
                 f"Plan {i} | {p['total_time']:.0f}s | {p['stops']} parada(s) | {stint_parts}"
@@ -386,7 +409,7 @@ def render_strategy_tab(
                     "Tiempo Est. (s)": round(s["pred_time"], 2),
                 }
             )
-        st.dataframe(pd.DataFrame(stint_rows), width='stretch')
+        st.dataframe(pd.DataFrame(stint_rows), width="stretch")
 
     # ── D. SEGUIMIENTO EN VIVO ────────────────────────────────────────────
     if has_race_data:
@@ -397,7 +420,9 @@ def render_strategy_tab(
         race_params = st.session_state.get("race_params", {})
 
         # Estado actual del coche
-        current_lap = int(lap_summary[COL_LAP].max()) if COL_LAP in lap_summary.columns else 0
+        current_lap = (
+            int(lap_summary[COL_LAP].max()) if COL_LAP in lap_summary.columns else 0
+        )
         last_row = lap_summary[lap_summary[COL_LAP] == current_lap].tail(1)
         comp_now = (
             str(last_row["compound"].iloc[0])
@@ -424,7 +449,9 @@ def render_strategy_tab(
         col_d4.metric("Vueltas restantes", rem)
 
         if not chosen_plan_live:
-            st.info("Selecciona una estrategia en la sección C para activar el seguimiento.")
+            st.info(
+                "Selecciona una estrategia en la sección C para activar el seguimiento."
+            )
         elif not comp_now:
             st.info("Sin datos de compuesto actual en la telemetría.")
         else:

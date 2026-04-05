@@ -17,8 +17,11 @@ from _imports import (
     enumerate_plans,
     fia_compliance_check,
     fit_degradation_model,
+    load_multi_session_csvs,
     load_session_csv,
 )
+
+from f1m.constants import MODEL_ALGORITHM_VERSION
 
 
 @st.cache_data(show_spinner=False)
@@ -63,14 +66,30 @@ def fit_combined_model(
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
 
+
 def load_precomputed_model(models_root: Path, track: str, driver: str):
     path = models_root / track / f"{driver}_model.json"
     if path.exists():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
+            # Rechazar modelos guardados con un algoritmo anterior al actual.
+            # Cuando MODEL_ALGORITHM_VERSION aumenta el JSON se considera obsoleto
+            # y se fuerza la recomputación desde los datos de práctica.
+            saved_version = data.get("metadata", {}).get("model_algorithm_version", 0)
+            if saved_version != MODEL_ALGORITHM_VERSION:
+                st.info(
+                    f"Modelo guardado obsoleto (v{saved_version} → v{MODEL_ALGORITHM_VERSION}). "
+                    "Recalculando desde los datos de entrenamiento..."
+                )
+                return {}, {}
             raw = data.get("models", {})
             models: dict[
-                str, Union[Tuple[float, float], Tuple[float, float, float], Tuple[float, float, float, float]]
+                str,
+                Union[
+                    Tuple[float, float],
+                    Tuple[float, float, float],
+                    Tuple[float, float, float, float],
+                ],
             ] = {}
             for comp, coeffs in raw.items():
                 if isinstance(coeffs, list):
@@ -102,7 +121,9 @@ def load_precomputed_model(models_root: Path, track: str, driver: str):
 
 
 @st.cache_data(show_spinner=True)
-def load_practice_data(data_root: Path, track: str, driver: str, _data_version: float = 0.0) -> pd.DataFrame:
+def load_practice_data(
+    data_root: Path, track: str, driver: str, _data_version: float = 0.0
+) -> pd.DataFrame:
     """Carga datos de práctica con caché inteligente.
 
     _data_version es el max mtime de los parquets curados para invalidar la
@@ -112,8 +133,17 @@ def load_practice_data(data_root: Path, track: str, driver: str, _data_version: 
 
 
 @st.cache_data(show_spinner=True)
-def fit_degradation_models(practice_data: pd.DataFrame):
-    """Ajusta modelos de degradación con caché para evitar recálculos costosos."""
+def fit_degradation_models(
+    practice_data: pd.DataFrame,
+    model_version: int = MODEL_ALGORITHM_VERSION,
+) -> dict:
+    """Ajusta modelos de degradación con caché para evitar recálculos costosos.
+
+    ``model_version`` forma parte de la clave de caché: cuando se incrementa
+    MODEL_ALGORITHM_VERSION en constants.py la caché se invalida automáticamente
+    sin necesidad de hacer 'Clear cache' manualmente.
+    """
+    del model_version  # only used as cache-key discriminator
     return fit_degradation_model(practice_data)
 
 
@@ -131,6 +161,8 @@ def generate_race_plans(
     start_fuel: float = 0.0,
     cons_per_lap: float = 0.0,
     race_temp: float = 0.0,
+    driver: str = "",
+    research_root: Path | None = None,
 ):
     """Genera planes de carrera. Sin caché — solo se llama al pulsar el botón."""
     return enumerate_plans(
@@ -147,6 +179,8 @@ def generate_race_plans(
         start_fuel=start_fuel,
         cons_per_lap=cons_per_lap,
         race_temp=race_temp,
+        driver=driver,
+        research_root=research_root,
     )
 
 
@@ -156,6 +190,27 @@ def load_and_process(path: Path, mtime: float):
     mtime se incluye para invalidar cache cuando el archivo cambia.
     """
     df = load_session_csv(path)
+    df = detect_pit_events(df)
+    lap_summary = build_lap_summary(df)
+    stints = build_stints(lap_summary)
+    compliance = fia_compliance_check(stints, df.get("weather"))
+    return df, lap_summary, stints, compliance
+
+
+@st.cache_data(show_spinner=True)
+def load_and_process_dir(driver_dir: Path, mtime: float):
+    """Carga y procesa todos los CSV de una carpeta de piloto (sesión multi-archivo).
+
+    Cuando una sesión supera una hora el logger genera varios archivos con prefijo
+    de timestamp. Esta función los detecta, los ordena cronológicamente y los une
+    en un único DataFrame antes de procesar.
+
+    ``mtime`` es el timestamp del archivo más reciente en el directorio y sirve
+    para invalidar la caché automáticamente cuando llega nuevo dato.
+    """
+    df = load_multi_session_csvs(driver_dir)
+    if df.empty:
+        return df, df, [], []
     df = detect_pit_events(df)
     lap_summary = build_lap_summary(df)
     stints = build_stints(lap_summary)
@@ -185,7 +240,7 @@ def save_model_json(
             "temp_used": temp_used,
             "saved_at": datetime.now().isoformat(timespec="seconds"),
             "app_version": app_version,
-            "model_version": 1,
+            "model_algorithm_version": MODEL_ALGORITHM_VERSION,
         },
         "models": {k: list(v) for k, v in models.items()},
     }

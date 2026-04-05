@@ -9,10 +9,13 @@ from .imports import (
     COL_SAFETY_CAR,
     MIN_RUBBER_STD,
     MIN_TEMP_STD,
+    MIN_WEAR_RATE_PER_LAP,
+    PACE_WEAR_SCALE,
     RAIN_TIME_MULTIPLIER,
     SAFETY_CAR_TIME_MULTIPLIER,
     WEAR_CLIFF,
     Dict,
+    Path,
     Tuple,
     Union,
     np,
@@ -196,6 +199,12 @@ def fit_degradation_model(
         A = np.column_stack([np.ones_like(X_age), X_age])  # type: ignore[call-overload]
         coef, *_ = np.linalg.lstsq(A, y, rcond=None)  # type: ignore[call-overload]
         a, b_age = map(float, coef)
+        if not _coef_valid(a, b_age):
+            # El slope es físicamente imposible (e.g. b_age muy negativo por vueltas
+            # en modo Light sin variación real de degradación). Mantenemos el intercept
+            # OLS (que está en la misma escala de referencia que los modelos 4-param)
+            # y seteamos b_age=0 → modelo plano conservador.
+            b_age = 0.0
         models[comp] = (a, b_age)
     return models
 
@@ -229,48 +238,74 @@ def adjust_lap_time_for_conditions(
     return base_lap_time * multiplier
 
 
-def max_stint_length(practice_laps: pd.DataFrame, compound: str) -> int:
+def max_stint_length(
+    practice_laps: pd.DataFrame,
+    compound: str,
+    driver: str = "",
+    research_root: "Path | None" = None,
+) -> int:
     # Normalise both the lookup key and the data column so "C3"/"C4" → "Soft"
     compound = canonical_compound(compound)
     canonical_col = practice_laps["compound"].apply(canonical_compound)
     subset = practice_laps[canonical_col == compound]
     if subset.empty:
-        if compound.lower().startswith("soft"):
-            return 18
-        if compound.lower().startswith("medium"):
-            return 28
-        if compound.lower().startswith("hard"):
-            return 40
         return 25
 
     # Wear-based prediction: fit linear model avg_wear ~ tire_age and find the
     # lap where predicted wear crosses the cliff threshold.
-    # In F1 Manager, flDeg/rrDeg represent REMAINING life (1.0=new → 0.0=destroyed),
-    # so b_w is NEGATIVE (decreasing). The cliff is 1.0 - WEAR_CLIFF/100.
+    # In F1 Manager, flDeg/frDeg/rlDeg/rrDeg represent REMAINING life
+    # (1.0 = new → 0.0 = destroyed), so b_w is NEGATIVE (decreasing).
+    # The cliff is at 1.0 - WEAR_CLIFF/100 remaining life.
+    #
+    # When practice was driven in Light/Conserve mode the measured b_w is much
+    # smaller than it would be at Standard/race pace. We detect the dominant
+    # paceMode and apply PACE_WEAR_SCALE to convert b_w to Standard-equivalent
+    # before computing the cliff crossing — no arbitrary cap needed.
     if COL_AVG_WEAR in subset.columns:
-        wear_data = subset[["tire_age", COL_AVG_WEAR]].dropna()
+        wear_cols = ["tire_age", COL_AVG_WEAR]
+        if COL_PACE_MODE in subset.columns:
+            wear_cols.append(COL_PACE_MODE)
+        wear_data = subset[wear_cols].dropna(subset=["tire_age", COL_AVG_WEAR])
         wear_data = wear_data[wear_data[COL_AVG_WEAR] > 0]
+
         if len(wear_data) >= 3 and wear_data["tire_age"].nunique() >= 2:
             _ages_w = np.array(wear_data["tire_age"].values, dtype=float)
             X_w = np.column_stack([np.ones(len(_ages_w)), _ages_w])
             y_w = wear_data[COL_AVG_WEAR].values.astype(float)
             coef_w, *_ = np.linalg.lstsq(X_w, y_w, rcond=None)  # type: ignore[call-overload]
             a_w, b_w = float(coef_w[0]), float(coef_w[1])
+
+            # Detect dominant paceMode and scale b_w to Standard-equivalent.
+            # Priority: calibrated driver scale from research DB > hardcoded PACE_WEAR_SCALE.
+            scale = 1.0
+            dominant = "Standard"
+            if COL_PACE_MODE in wear_data.columns:
+                mode_counts = wear_data[COL_PACE_MODE].value_counts()
+                if not mode_counts.empty:
+                    dominant = str(mode_counts.index[0])
+                    scale = PACE_WEAR_SCALE.get(dominant, 1.0)
+
+            # Try to get a calibrated scale from historical race data
+            if research_root is not None and driver:
+                from .research import get_driver_scale
+                calibrated = get_driver_scale(research_root, driver, compound, dominant)
+                if calibrated != scale:
+                    scale = calibrated
+            # scale > 1 means practice was conservative → amplify wear rate
+            b_w_race = b_w * scale
+
             # Determine scale: values > 1.5 are %-worn (0→100), else fraction remaining (0→1)
             if float(wear_data[COL_AVG_WEAR].max()) > 1.5:
-                # %-worn scale: find when wear > WEAR_CLIFF
-                if b_w > 0:
-                    max_lap = int((WEAR_CLIFF - a_w) / b_w)
+                if b_w_race > MIN_WEAR_RATE_PER_LAP:
+                    max_lap = int((WEAR_CLIFF - a_w) / b_w_race)
                     if 5 <= max_lap <= 60:
                         return max_lap
             else:
-                # Fraction-remaining scale: find when remaining < (1 - WEAR_CLIFF/100)
                 cliff_remaining = 1.0 - WEAR_CLIFF / 100.0
-                if b_w < 0:
-                    max_lap = int((cliff_remaining - a_w) / b_w)
+                if b_w_race < -MIN_WEAR_RATE_PER_LAP:
+                    max_lap = int((cliff_remaining - a_w) / b_w_race)
                     if 5 <= max_lap <= 60:
                         return max_lap
 
-    # Fallback: last observed tire_age + small buffer
-    max_age = int(subset["tire_age"].max())
-    return max_age + 2
+    # Fallback: maximum observed tire age + 1 lap buffer
+    return int(subset["tire_age"].max()) + 1

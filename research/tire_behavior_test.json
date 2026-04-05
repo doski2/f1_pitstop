@@ -1,0 +1,123 @@
+{
+  "Bahrain": {
+    "Fernando Alonso": {
+      "Hard": [
+        {
+          "saved_at": "2026-04-04",
+          "compound": "Hard",
+          "dominant_mode": "Light",
+          "scale_factor": 1.8,
+          "a_w": 0.9466,
+          "b_w_measured": -0.015616,
+          "b_w_race_equiv": -0.028109,
+          "r2_wear": 0.9999,
+          "max_stint_est": 28,
+          "n_wear_laps": 32,
+          "time_by_session": {
+            "Practice 2": {
+              "a_t": 93.042,
+              "b_age_measured": 0.291,
+              "b_age_race_equiv": 0.5239,
+              "r2_time": 0.0735,
+              "n_time_laps": 31,
+              "dominant_mode": "Light",
+              "scale_factor": 1.8
+            }
+          },
+          "model_coefficients": {
+            "a": 117.55629,
+            "b_age": 0.25758,
+            "c_fuel": 0.41331,
+            "d_temp": -1.03265
+          },
+          "conditions": {
+            "track_temp_mean_c": 28.3,
+            "rubber_mean": 0.6542
+          }
+        }
+      ],
+      "Medium": [
+        {
+          "saved_at": "2026-04-04",
+          "compound": "Medium",
+          "dominant_mode": "Light",
+          "scale_factor": 1.8,
+          "a_w": 0.98345,
+          "b_w_measured": -0.013448,
+          "b_w_race_equiv": -0.024206,
+          "r2_wear": 0.9998,
+          "max_stint_est": 34,
+          "n_wear_laps": 31,
+          "time_by_session": {
+            "Practice 1": {
+              "a_t": 113.704,
+              "b_age_measured": -0.6808,
+              "b_age_race_equiv": -0.6808,
+              "r2_time": 0.0257,
+              "n_time_laps": 30,
+              "dominant_mode": "Light",
+              "scale_factor": 1.8
+            }
+          },
+          "model_coefficients": {
+            "a": 137.1795,
+            "b_age": -2.04788
+          },
+          "conditions": {
+            "track_temp_mean_c": 35.9,
+            "rubber_mean": 0.2262
+          }
+        }
+      ],
+      "Soft": [
+        {
+          "saved_at": "2026-04-04",
+          "compound": "Soft",
+          "dominant_mode": "Light",
+          "scale_factor": 1.8,
+          "a_w": 0.97005,
+          "b_w_measured": -0.021388,
+          "b_w_race_equiv": -0.038498,
+          "r2_wear": 0.997,
+          "max_stint_est": 21,
+          "n_wear_laps": 37,
+          "time_by_session": {
+            "Practice 3": {
+              "a_t": 97.248,
+              "b_age_measured": -0.2942,
+              "b_age_race_equiv": -0.2942,
+              "r2_time": 0.0796,
+              "n_time_laps": 35,
+              "dominant_mode": "Light",
+              "scale_factor": 1.8
+            }
+          },
+          "model_coefficients": {
+            "a": 115.38166,
+            "b_age": -0.00816,
+            "c_fuel": -0.05686,
+            "d_temp": -0.52551
+          },
+          "conditions": {
+            "track_temp_mean_c": 36.3,
+            "rubber_mean": 0.5245
+          }
+        },
+        {
+          "saved_at": "2026-04-04",
+          "compound": "Soft",
+          "dominant_mode": "Standard",
+          "scale_factor": 1.0,
+          "b_w_measured": -0.0214,
+          "b_w_race_equiv": -0.0214,
+          "r2_wear": 0.94,
+          "max_stint_est": 19,
+          "n_wear_laps": 18,
+          "time_by_session": {},
+          "model_coefficients": {},
+          "conditions": {}
+        }
+      ]
+    }
+  }
+}

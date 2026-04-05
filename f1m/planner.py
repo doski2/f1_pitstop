@@ -7,6 +7,7 @@ Incluye chequeos de viabilidad por combustible cuando hay modelo con fuel.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from .common import canonical_compound, display_compound
 from .imports import (
@@ -30,7 +31,14 @@ from .modeling import adjust_lap_time_for_conditions, max_stint_length, stint_ti
 def enumerate_plans(
     race_laps: int,
     compounds: List[str],
-    models: Mapping[str, Union[Tuple[float, float], Tuple[float, float, float], Tuple[float, float, float, float]]],
+    models: Mapping[
+        str,
+        Union[
+            Tuple[float, float],
+            Tuple[float, float, float],
+            Tuple[float, float, float, float],
+        ],
+    ],
     practice_laps: pd.DataFrame,
     pit_loss: float,
     max_stops: int = DEFAULT_MAX_STOPS,
@@ -44,6 +52,8 @@ def enumerate_plans(
     safety_car_percentage: float = 0.0,
     rain_percentage: float = 0.0,
     race_temp: float = 0.0,
+    driver: str = "",
+    research_root: Optional[Path] = None,
 ) -> List[dict]:
     """Devuelve los `top_k` mejores planes por tiempo total estimado.
 
@@ -55,7 +65,12 @@ def enumerate_plans(
     """
 
     plans: List[dict] = []
-    max_len = {c: max_stint_length(practice_laps, c) for c in compounds}
+    max_len = {
+        c: max_stint_length(
+            practice_laps, c, driver=driver, research_root=research_root
+        )
+        for c in compounds
+    }
 
     @lru_cache(maxsize=None)
     def compute_stint_time(
@@ -73,7 +88,9 @@ def enumerate_plans(
                 fuel_series = fuel_cursor - cons_per_lap * ages
                 if (fuel_series < 0).any():
                     return float("inf"), fuel_cursor
-                stint_time_val = float(np.sum(a_eff + b_age * ages + c_fuel * fuel_series))
+                stint_time_val = float(
+                    np.sum(a_eff + b_age * ages + c_fuel * fuel_series)
+                )
             else:
                 stint_time_val = stint_time(a_eff, b_age, laps)
             new_fuel = fuel_cursor - cons_per_lap * laps
@@ -203,7 +220,9 @@ def enumerate_plans(
                 ages = np.arange(0, laps)
                 if use_fuel and c_fuel != 0.0:
                     fuel_series = start_fuel - cons_per_lap * ages
-                    pred_time = float(np.sum(a_eff + b_age * ages + c_fuel * fuel_series))
+                    pred_time = float(
+                        np.sum(a_eff + b_age * ages + c_fuel * fuel_series)
+                    )
                 else:
                     pred_time = stint_time(a_eff, b_age, laps)
             elif use_fuel and len(coeffs) == 3:
@@ -231,7 +250,14 @@ def live_pit_recommendation(
     total_race_laps: int,
     current_compound: str,
     current_tire_age: int,
-    models: Dict[str, Union[Tuple[float, float], Tuple[float, float, float], Tuple[float, float, float, float]]],
+    models: Dict[
+        str,
+        Union[
+            Tuple[float, float],
+            Tuple[float, float, float],
+            Tuple[float, float, float, float],
+        ],
+    ],
     practice_laps: pd.DataFrame,
     pit_loss: float,
     window: int = 12,
@@ -357,7 +383,14 @@ def plan_aware_recommendation(
     total_race_laps: int,
     current_compound: str,
     current_tire_age: int,
-    models: Dict[str, Union[Tuple[float, float], Tuple[float, float, float], Tuple[float, float, float, float]]],
+    models: Dict[
+        str,
+        Union[
+            Tuple[float, float],
+            Tuple[float, float, float],
+            Tuple[float, float, float, float],
+        ],
+    ],
     chosen_plan: List[dict],
     practice_laps: pd.DataFrame,
     pit_loss: float,
@@ -390,7 +423,12 @@ def plan_aware_recommendation(
 
     rem_total = total_race_laps - current_lap
     if rem_total <= 0:
-        return {"status": "finished", "planned_pit_lap": None, "next_compound": None, "time_saving": 0.0}
+        return {
+            "status": "finished",
+            "planned_pit_lap": None,
+            "next_compound": None,
+            "time_saving": 0.0,
+        }
 
     # Locate which stint of the plan we are currently in
     cumulative = 0
