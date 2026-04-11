@@ -139,6 +139,10 @@ def enumerate_plans(
         if cache_key in _plan_cache:
             return _plan_cache[cache_key]
 
+        if stops_used > max_stops:
+            _plan_cache[cache_key] = []
+            return []
+
         if remaining == 0:
             # Valid plan found
             result: List[Tuple[List[Tuple[str, int]], float, float]] = [
@@ -146,10 +150,6 @@ def enumerate_plans(
             ]
             _plan_cache[cache_key] = result
             return result
-
-        if stops_used > max_stops:
-            _plan_cache[cache_key] = []
-            return []
 
         results = []
 

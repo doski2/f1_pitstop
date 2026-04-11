@@ -121,14 +121,23 @@
               "n_time_laps": 30,
               "dominant_mode": "Light",
               "scale_factor": 1.8
+            },
+            "Race": {
+              "a_t": 95.525,
+              "b_age_measured": -0.1285,
+              "b_age_race_equiv": -0.1285,
+              "r2_time": 0.252,
+              "n_time_laps": 30,
+              "dominant_mode": "Light",
+              "scale_factor": 1.8
             }
           },
           "model_coefficients": {
             "a": 137.1795,
-            "b_age": -2.04788
+            "b_age": 0.0
           },
           "conditions": {
-            "track_temp_mean_c": 35.9,
+            "track_temp_mean_c": 30.2,
             "rubber_mean": 0.2262
           }
         }
@@ -207,10 +216,50 @@
           "compound": "C6",
           "dominant_mode": "Unknown",
           "scale_factor": 1.0,
-          "time_by_session": {},
-          "model_coefficients": {},
+          "time_by_session": {
+            "Race": {
+              "a_t": 101.045,
+              "b_age_measured": -0.1103,
+              "b_age_race_equiv": -0.1103,
+              "r2_time": 0.4275,
+              "n_time_laps": 40,
+              "dominant_mode": "Unknown",
+              "scale_factor": 1.0
+            }
+          },
+          "model_coefficients": {
+            "a": 100.97495,
+            "b_age": -0.10158
+          },
           "conditions": {
-            "track_temp_mean_c": 24.5,
+            "track_temp_mean_c": 26.7,
+            "rubber_mean": null
+          }
+        }
+      ],
+      "C7": [
+        {
+          "saved_at": "2026-04-05",
+          "compound": "C7",
+          "dominant_mode": "Unknown",
+          "scale_factor": 1.0,
+          "time_by_session": {
+            "Race": {
+              "a_t": 97.76,
+              "b_age_measured": -0.1172,
+              "b_age_race_equiv": -0.1172,
+              "r2_time": 0.3788,
+              "n_time_laps": 40,
+              "dominant_mode": "Unknown",
+              "scale_factor": 1.0
+            }
+          },
+          "model_coefficients": {
+            "a": 96.89562,
+            "b_age": -0.05534
+          },
+          "conditions": {
+            "track_temp_mean_c": 26.5,
             "rubber_mean": null
           }
         }
@@ -223,10 +272,23 @@
           "compound": "C7",
           "dominant_mode": "Unknown",
           "scale_factor": 1.0,
-          "time_by_session": {},
-          "model_coefficients": {},
+          "time_by_session": {
+            "Race": {
+              "a_t": 106.695,
+              "b_age_measured": -0.4511,
+              "b_age_race_equiv": -0.4511,
+              "r2_time": 0.2404,
+              "n_time_laps": 42,
+              "dominant_mode": "Unknown",
+              "scale_factor": 1.0
+            }
+          },
+          "model_coefficients": {
+            "a": 100.33023,
+            "b_age": -0.0527
+          },
           "conditions": {
-            "track_temp_mean_c": 24.5,
+            "track_temp_mean_c": 26.7,
             "rubber_mean": null
           }
         }
@@ -287,14 +349,23 @@
               "n_time_laps": 30,
               "dominant_mode": "Light",
               "scale_factor": 1.8
+            },
+            "Race": {
+              "a_t": 96.52,
+              "b_age_measured": -0.3269,
+              "b_age_race_equiv": -0.3269,
+              "r2_time": 0.4591,
+              "n_time_laps": 22,
+              "dominant_mode": "Light",
+              "scale_factor": 1.8
             }
           },
           "model_coefficients": {
             "a": 136.92364,
-            "b_age": -2.02141
+            "b_age": 0.0
           },
           "conditions": {
-            "track_temp_mean_c": 35.9,
+            "track_temp_mean_c": 30.9,
             "rubber_mean": 0.2263
           }
         }
@@ -331,6 +402,33 @@
           "conditions": {
             "track_temp_mean_c": 36.3,
             "rubber_mean": 0.5237
+          }
+        }
+      ],
+      "C6": [
+        {
+          "saved_at": "2026-04-05",
+          "compound": "C6",
+          "dominant_mode": "Unknown",
+          "scale_factor": 1.0,
+          "time_by_session": {
+            "Race": {
+              "a_t": 97.635,
+              "b_age_measured": -0.0765,
+              "b_age_race_equiv": -0.0765,
+              "r2_time": 0.2015,
+              "n_time_laps": 44,
+              "dominant_mode": "Unknown",
+              "scale_factor": 1.0
+            }
+          },
+          "model_coefficients": {
+            "a": 96.89736,
+            "b_age": -0.03089
+          },
+          "conditions": {
+            "track_temp_mean_c": 26.5,
+            "rubber_mean": null
           }
         }
       ]

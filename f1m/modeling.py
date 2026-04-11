@@ -246,6 +246,8 @@ def max_stint_length(
 ) -> int:
     # Normalise both the lookup key and the data column so "C3"/"C4" → "Soft"
     compound = canonical_compound(compound)
+    if practice_laps.empty or "compound" not in practice_laps.columns:
+        return 25
     canonical_col = practice_laps["compound"].apply(canonical_compound)
     subset = practice_laps[canonical_col == compound]
     if subset.empty:
